@@ -1,25 +1,38 @@
-# Tally: personal budget dashboard
+# Tally: money made simple
 
-A single-file, no-install budget dashboard. Open `index.html` in any modern browser. Everything is stored in that browser (localStorage); nothing is sent anywhere.
+A friendly budget dashboard built for people with **no finance or tech background**. It answers one question first, "How much can I safely spend?", then helps with bills, saving and debts in plain language.
 
-It opens with sample data for a two-person household. Use **Start fresh** to clear it and track your own money.
+Built with **React 18 + TypeScript**, **Vite**, **Tailwind CSS**, **Framer Motion** (animations), **Recharts** (charts), **Zustand** (saved state) and **canvas-confetti** (celebrations). Everything is stored in the browser. Nothing is sent to a server.
 
-## What's inside
+## Run it
 
-| Section | What it does |
-|---|---|
-| **Overview** | Income, spent, saved and left-to-spend tiles with 12-month sparklines; a spending-pace chart against your budget; category donut (click to drill in); 12-month cash flow (click a month to open it); auto-generated insights; budget health; 50/30/20 check; bills coming up with one-tap "mark paid"; latest activity; account balances; who-spent-what for households |
-| **Transactions** | Search, filter (period, type, category, account, person, paid/upcoming), sort, edit, delete with undo, skip a single recurring occurrence, CSV import/export |
-| **Budgets** | Per-category budgets edited inline, status per category, 6-month history bars, fresh-each-month or roll-over-leftovers, unassigned money, paycheck planner (weekly / bi-weekly / twice monthly / monthly) |
-| **Bills & income** | Repeating rules with 7 frequencies, monthly checklist with tick-to-pay, fixed-cost and subscription totals |
-| **Calendar** | Spending heat map by day, bills on their due dates, weekly totals, configurable week start, day detail with "add on this day" |
-| **Goals** | Savings goals with progress rings and monthly amount needed; "Add money" logs a savings transaction; no-spend challenge with streaks |
-| **Debt payoff** | Avalanche vs snowball, extra-payment slider, debt-free date, interest saved vs minimums, payoff order |
-| **Net worth** | Assets vs liabilities (accounts, holdings and debts combined), 12-month trend, investment forecast with contribution / return / years sliders |
-| **Settings** | Household (up to 6 people), currency, 50/30/20 ratios, accounts, categories, JSON backup/restore |
+```bash
+npm install
+npm run dev      # local dev server
+npm run build    # type-check + build one self-contained file: dist/index.html
+```
 
-## Keyboard
+`dist/index.html` works on its own: double-click it, or host it anywhere (GitHub Pages, Netlify, a USB stick).
 
-`N` add transaction · `⌘K` / `Ctrl+K` or `/` search and commands · `[` `]` previous / next month · `1`–`9` switch section · `Esc` close
+## What it does
 
-Light and dark themes follow your system; the moon/sun button switches manually.
+- **2-minute setup.** Asks for your pay, your usual bills and a savings goal, then builds a sensible plan for you. Or explore with example data first.
+- **Home.** A big "Safe to spend" number with "about X a day", a money health score out of 100 with reasons, money in / out / put aside, a spending-pace chart, where your money went, bills coming up, personal tips, savings jars and a 12-month view.
+- **Quick add.** Tap +, pick what it was, type the amount on a big keypad, done. Works with the keyboard too (press `N`).
+- **Activity.** Grouped by day, with search, filters, a calendar heat map and CSV import from your bank.
+- **My plan.** Spending "pots" with sliders, a "use what I usually spend" button, a healthy balance check (essentials / extras / future you), a per-paycheck view and optional carry-over of leftovers.
+- **Bills & pay.** Set once, show up every month, tick when paid (with a little celebration). Includes a subscriptions check-up.
+- **Goals.** Animated savings jars, the monthly amount needed, and a no-spend challenge with streaks.
+- **Debts.** "Cheapest way" vs "Quick wins", an extra-payment slider and your debt-free date.
+- **What I'm worth.** Own minus owe, a 12-month trend and a "what if I invest regularly" calculator.
+- **Help everywhere.** A `?` next to every number explains it in plain words, plus a Help page with simple answers.
+- Light and dark themes, phone layout with a bottom tab bar, undo on every change, backup and restore.
+
+## Project layout
+
+```
+src/
+  lib/          dates, money formatting, calculations, sample data, import/export, store
+  components/   UI kit (cards, sheets, sliders, rings, jars), charts, all forms
+  screens/      Onboarding, Home, Activity, Plan, Bills, Goals, Debts, Worth, Settings
+```
