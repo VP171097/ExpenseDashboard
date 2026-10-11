@@ -54,12 +54,18 @@ export function itemsIn(s: State, from: string, to: string): Item[] {
   return memo(s, `items|${from}|${to}`, () => {
     const out: Item[] = []
     for (const t of s.tx) if (t.date >= from && t.date <= to) out.push({ ...t, paid: true })
+    // look a month either side so a single payment moved across a month boundary still shows up
+    const wideFrom = iso(addDays(parse(from), -40)), wideTo = to > '2900' ? to : iso(addDays(parse(to), 40))
     for (const r of s.rules)
-      for (const d of occurrences(r, from, to)) {
-        if (s.skip[ruleKey(r.id, d)]) continue
+      for (const d of occurrences(r, wideFrom, wideTo)) {
+        const key = ruleKey(r.id, d)
+        if (s.skip[key]) continue
+        const ov = s.overrides?.[key]
+        const date = ov?.date ?? d
+        if (date < from || date > to) continue
         out.push({
-          id: `r|${r.id}|${d}`, ruleId: r.id, virtual: true, date: d, amount: +r.amount, type: r.type, cat: r.cat,
-          account: r.account, to: r.to, person: r.person, note: r.name, paid: isPaid(s, r, d),
+          id: `r|${r.id}|${d}`, ruleId: r.id, virtual: true, occ: d, date, amount: ov?.amount ?? +r.amount, type: r.type, cat: r.cat, sub: r.sub,
+          account: r.account, to: r.to, person: r.person, note: r.name, paid: isPaid(s, r, d), changed: !!ov,
         })
       }
     return out
@@ -72,6 +78,9 @@ export interface MonthStats {
   expectedIn: number; billsDue: number; savingDue: number; nDue: number
   everydaySpent: number; billsAll: number
   byCat: Record<string, number>; byGroup: Record<'essentials' | 'extras' | 'future', number>; byPerson: Record<string, number>
+  bySub: Record<string, Record<string, number>>
+  /** per person: money in, put aside and spending by category */
+  people: Record<string, { in: number; saved: number; spent: number; byCat: Record<string, number> }>
   byDay: number[]; extrasDay: number[]; inDay: number[]; savedDay: number[]
   biggest: Item | null
 }
@@ -81,8 +90,9 @@ export function monthStats(s: State, k: string): MonthStats {
     const z = () => Array(dim + 1).fill(0) as number[]
     const m: MonthStats = {
       income: 0, spent: 0, saved: 0, expectedIn: 0, billsDue: 0, savingDue: 0, nDue: 0, everydaySpent: 0, billsAll: 0,
-      byCat: {}, byGroup: { essentials: 0, extras: 0, future: 0 }, byPerson: {}, byDay: z(), extrasDay: z(), inDay: z(), savedDay: z(), biggest: null,
+      byCat: {}, byGroup: { essentials: 0, extras: 0, future: 0 }, byPerson: {}, byDay: z(), extrasDay: z(), inDay: z(), savedDay: z(), biggest: null, bySub: {}, people: {},
     }
+    const P = (n?: string) => (m.people[n || '—'] ??= { in: 0, saved: 0, spent: 0, byCat: {} })
     for (const t of monthItems(s, k)) {
       const a = +t.amount || 0, day = +t.date.slice(8)
       if (t.virtual && t.type === 'expense') m.billsAll += a
@@ -91,14 +101,16 @@ export function monthStats(s: State, k: string): MonthStats {
         else { m.billsDue += a; m.nDue++; if (t.type === 'savings') m.savingDue += a }
         continue
       }
-      if (t.type === 'income') { m.income += a; m.inDay[day] += a }
-      else if (t.type === 'savings') { m.saved += a; m.byGroup.future += a; m.savedDay[day] += a }
+      if (t.type === 'income') { m.income += a; m.inDay[day] += a; P(t.person).in += a }
+      else if (t.type === 'savings') { m.saved += a; m.byGroup.future += a; m.savedDay[day] += a; P(t.person).saved += a }
       else {
         m.spent += a
         m.byCat[t.cat] = (m.byCat[t.cat] || 0) + a
         const g = catOf(s, t.cat)?.group ?? 'extras'
         m.byGroup[g === 'future' ? 'extras' : g] += a
         if (t.person) m.byPerson[t.person] = (m.byPerson[t.person] || 0) + a
+        const pp = P(t.person); pp.spent += a; pp.byCat[t.cat] = (pp.byCat[t.cat] || 0) + a
+        const sb = (m.bySub[t.cat] ??= {}); sb[t.sub || ''] = (sb[t.sub || ''] || 0) + a
         if (!t.virtual) m.everydaySpent += a
         m.byDay[day] += a
         if (g === 'extras') m.extrasDay[day] += a
@@ -128,11 +140,12 @@ export function planFor(s: State, c: Category, k: string, depth = 0): number {
 }
 export const totalPlan = (s: State, k: string) => memo(s, 'tp|' + k, () => sum(spendCats(s).map((c) => planFor(s, c, k))))
 
-export function balances(s: State) {
-  return memo(s, 'bal', () => {
+/** Account balances at the end of a given day (today by default). */
+export function balances(s: State, upTo = TODAY) {
+  return memo(s, 'bal|' + upTo, () => {
     const b: Record<string, number> = {}
     s.accounts.forEach((a) => (b[a.id] = +a.start || 0))
-    for (const t of itemsIn(s, '1900-01-01', TODAY)) {
+    for (const t of itemsIn(s, '1900-01-01', upTo)) {
       if (!t.paid) continue
       const a = +t.amount
       if (t.type === 'income') b[t.account] = (b[t.account] || 0) + a
@@ -141,9 +154,46 @@ export function balances(s: State) {
         if (t.type === 'savings' && t.to) b[t.to] = (b[t.to] || 0) + a
       }
     }
+    for (const t of s.transfers ?? []) if (t.date <= upTo) { b[t.from] = (b[t.from] || 0) - t.amount; b[t.to] = (b[t.to] || 0) + t.amount }
     return b
   })
 }
+/** Money that came into and went out of one account between two dates (transfers included). */
+export function accountFlows(s: State, id: string, from: string, to: string) {
+  let received = 0, withdrawn = 0
+  for (const t of itemsIn(s, from, to)) {
+    if (!t.paid) continue
+    if (t.type === 'income' && t.account === id) received += t.amount
+    else if (t.type !== 'income' && t.account === id) withdrawn += t.amount
+    if (t.type === 'savings' && t.to === id) received += t.amount
+  }
+  for (const t of s.transfers ?? []) if (t.date >= from && t.date <= to) { if (t.to === id) received += t.amount; if (t.from === id) withdrawn += t.amount }
+  return { received, withdrawn }
+}
+/** Possible double entries: same amount and category within a day of each other. */
+export function findDuplicate(s: State, t: { id?: string; date: string; amount: number; cat: string }) {
+  const lo = iso(addDays(parse(t.date), -1)), hi = iso(addDays(parse(t.date), 1))
+  return s.tx.find((x) => x.id !== t.id && x.cat === t.cat && Math.abs(x.amount - t.amount) < 0.005 && x.date >= lo && x.date <= hi) ?? null
+}
+export function duplicateIds(s: State) {
+  return memo(s, 'dups', () => {
+    const groups = new Map<string, { id: string; date: string }[]>()
+    for (const t of s.tx) {
+      const k = `${t.cat}|${t.amount.toFixed(2)}`
+      if (!groups.has(k)) groups.set(k, [])
+      groups.get(k)!.push(t)
+    }
+    const out = new Set<string>()
+    for (const g of groups.values()) {
+      if (g.length < 2) continue
+      g.sort((x, y) => x.date.localeCompare(y.date))
+      for (let i = 1; i < g.length; i++)
+        if ((parse(g[i].date).getTime() - parse(g[i - 1].date).getTime()) / 86400000 <= 1) { out.add(g[i].id); out.add(g[i - 1].id) }
+    }
+    return out
+  })
+}
+
 export function worthNow(s: State) {
   const b = balances(s)
   let own = 0, owe = 0
@@ -179,24 +229,26 @@ export function monthPicture(s: State, k: string) {
 }
 
 /* ---------- debts ---------- */
-export function simulate(debts: Debt[], extra: number, strategy: 'cheapest' | 'quickwins') {
-  const ds = debts.map((d) => ({ ...d, bal: +d.balance })).filter((d) => d.bal > 0)
+export function simulate(debts: Debt[], extra: number, strategy: 'cheapest' | 'quickwins' | 'custom') {
+  const ds = debts.map((d, i) => ({ ...d, bal: +d.balance, rank: d.order ?? i, int: 0, paid: 0 })).filter((d) => d.bal > 0)
   const budget = sum(ds.map((d) => +d.min)) + (+extra || 0)
   let month = 0, interest = 0
   const line = [sum(ds.map((d) => d.bal))]
   const payoff: Record<string, number> = {}
   const order = () =>
-    ds.filter((d) => d.bal > 0.005).sort(strategy === 'quickwins' ? (a, b) => a.bal - b.bal : (a, b) => b.rate - a.rate || a.bal - b.bal)
+    ds.filter((d) => d.bal > 0.005).sort(strategy === 'quickwins' ? (a, b) => a.bal - b.bal : strategy === 'custom' ? (a, b) => a.rank - b.rank : (a, b) => b.rate - a.rate || a.bal - b.bal)
   while (ds.some((d) => d.bal > 0.005) && month < 600) {
     month++
-    ds.forEach((d) => { if (d.bal > 0.005) { const i = (d.bal * d.rate) / 1200; d.bal += i; interest += i } })
+    ds.forEach((d) => { if (d.bal > 0.005) { const i = (d.bal * d.rate) / 1200; d.bal += i; interest += i; d.int += i } })
     let pool = budget
-    ds.forEach((d) => { if (d.bal > 0.005) { const p = Math.min(d.bal, +d.min); d.bal -= p; pool -= p } })
-    for (const d of order()) { if (pool <= 0) break; const p = Math.min(d.bal, pool); d.bal -= p; pool -= p }
+    ds.forEach((d) => { if (d.bal > 0.005) { const p = Math.min(d.bal, +d.min); d.bal -= p; d.paid += p; pool -= p } })
+    for (const d of order()) { if (pool <= 0) break; const p = Math.min(d.bal, pool); d.bal -= p; d.paid += p; pool -= p }
     ds.forEach((d) => { if (d.bal <= 0.005 && !payoff[d.id]) payoff[d.id] = month })
     line.push(sum(ds.map((d) => Math.max(0, d.bal))))
   }
-  return { months: month, interest, line, payoff, stuck: month >= 600 }
+  const per: Record<string, { interest: number; paid: number }> = {}
+  ds.forEach((d) => (per[d.id] = { interest: d.int, paid: d.paid }))
+  return { months: month, interest, line, payoff, per, stuck: month >= 600 }
 }
 
 /* ---------- money health score ---------- */
@@ -277,3 +329,44 @@ export function tips(s: State, k: string): Tip[] {
 }
 
 export const monthsUntil = (due: string) => Math.max(1, monthsBetween(NOW, parse(due)))
+
+/* ---------- pay periods ---------- */
+export function payPeriod(s: State, offset = 0) {
+  const st = s.settings, anchor = parse(st.payAnchor || TODAY)
+  if (st.payCycle === 'monthly' || st.payCycle === 'semimonthly') {
+    const day = anchor.getDate()
+    if (st.payCycle === 'monthly') {
+      let start = new Date(NOW.getFullYear(), NOW.getMonth(), Math.min(day, 28))
+      if (start > NOW) start = addMonthsDate(start, -1)
+      start = addMonthsDate(start, offset)
+      return { start: iso(start), end: iso(addDays(addMonthsDate(start, 1), -1)) }
+    }
+    // twice a month: 1st-15th and 16th-end
+    const halves: [Date, Date][] = []
+    for (let m = -14; m <= 14; m++) {
+      const b = new Date(NOW.getFullYear(), NOW.getMonth() + m, 1)
+      halves.push([b, new Date(b.getFullYear(), b.getMonth(), 15)], [new Date(b.getFullYear(), b.getMonth(), 16), new Date(b.getFullYear(), b.getMonth() + 1, 0)])
+    }
+    const i = halves.findIndex(([a, b]) => NOW >= a && NOW <= b) + offset
+    const [a, b] = halves[Math.max(0, Math.min(halves.length - 1, i))]
+    return { start: iso(a), end: iso(b) }
+  }
+  const len = st.payCycle === 'weekly' ? 7 : st.payCycle === 'biweekly' ? 14 : Math.max(1, st.payDays || 14)
+  const diff = Math.floor((NOW.getTime() - anchor.getTime()) / 86400000)
+  const n = Math.floor(diff / len) + offset
+  const start = addDays(anchor, n * len)
+  return { start: iso(start), end: iso(addDays(start, len - 1)) }
+}
+
+/* ---------- a whole year ---------- */
+export function yearStats(s: State, y: number) {
+  return memo(s, 'year|' + y, () => {
+    const months = Array.from({ length: 12 }, (_, i) => `${y}-${String(i + 1).padStart(2, '0')}`)
+    const ms = months.map((k) => monthStats(s, k))
+    return {
+      months, ms,
+      income: sum(ms.map((m) => m.income)), spent: sum(ms.map((m) => m.spent)), saved: sum(ms.map((m) => m.saved)),
+      byCat: ms.reduce((acc, m) => { for (const [c, v] of Object.entries(m.byCat)) acc[c] = (acc[c] || 0) + v; return acc }, {} as Record<string, number>),
+    }
+  })
+}

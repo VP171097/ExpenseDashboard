@@ -16,17 +16,24 @@ npm run build    # type-check + build one self-contained file: dist/index.html
 
 ## What it does
 
-- **2-minute setup.** Asks for your pay, your usual bills and a savings goal, then builds a sensible plan for you. Or explore with example data first.
-- **Home.** A big "Safe to spend" number with "about X a day", a money health score out of 100 with reasons, money in / out / put aside, a spending-pace chart, where your money went, bills coming up, personal tips, savings jars and a 12-month view.
-- **Quick add.** Tap +, pick what it was, type the amount on a big keypad, done. Works with the keyboard too (press `N`).
-- **Activity.** Grouped by day, with search, filters, a calendar heat map and CSV import from your bank.
-- **My plan.** Spending "pots" with sliders, a "use what I usually spend" button, a healthy balance check (essentials / extras / future you), a per-paycheck view and optional carry-over of leftovers.
-- **Bills & pay.** Set once, show up every month, tick when paid (with a little celebration). Includes a subscriptions check-up.
-- **Goals.** Animated savings jars, the monthly amount needed, and a no-spend challenge with streaks.
-- **Debts.** "Cheapest way" vs "Quick wins", an extra-payment slider and your debt-free date.
-- **What I'm worth.** Own minus owe, a 12-month trend and a "what if I invest regularly" calculator.
-- **Help everywhere.** A `?` next to every number explains it in plain words, plus a Help page with simple answers.
-- Light and dark themes, phone layout with a bottom tab bar, undo on every change, backup and restore.
+Everything from popular spreadsheet budget planners, as a friendly app:
+
+| Area | Features |
+|---|---|
+| **Setup** | 2-minute guided setup (pay, bills, a goal) that builds your plan, or explore with example data. A guided tour shows the key parts. |
+| **Home** | "Safe to spend" with a per-day amount, money health score, money in / out / put aside, spending pace vs plan, where your money went, bills coming up, tips, savings jars, a mini month calendar, year-so-far totals and a 12-month chart. |
+| **Activity** | Recurring and one-off entries together, grouped by day. Search, filter by type, category, **sub-category**, person, account, paid/upcoming, essentials/extras/future, month or whole year, and sort. Totals by sub-category, **duplicate-entry alerts**, CSV import. |
+| **Calendar** | Month grid with spending shading, colour-coded category dots, bills and pay on their dates, **show/hide** spending, bills or income, choose the week's start day, **weekly and running totals**, **daily balance** and a month snapshot (start, now, in, out). |
+| **Bills & pay** | Set once with 7 frequencies, start and end dates, tick-to-pay, **change the amount or date of a single payment**, skip one, subscriptions check-up. |
+| **My plan** | Spending pots with sliders and "use what I usually spend", sub-category breakdown, fresh-each-month or **roll over leftovers**, zero-based "give every bit a job", 50/30/20 healthy balance with custom ratios. |
+| **Paycheck** | Weekly, every 2 weeks, twice a month, monthly or **custom** cycles. Pay, bills, everyday spending and savings per pay period, plan vs real, charts. |
+| **My year** | Annual totals, month-by-month table, savings over the year, category-by-month heat table, automatic year-end facts and your own reflection notes. **Download an Excel workbook** (opens in Google Sheets too). |
+| **Goals** | Savings jars (sinking funds) with monthly amount needed and on-track status, plus a no-spend challenge with streaks and a yearly overview. |
+| **Debts** | Up to as many debts as you like with **Cheapest way (avalanche), Quick wins (snowball) or your own order**, extra-payment slider, debt-free date, per-debt interest and total paid, log extra payments. |
+| **Accounts** | Every bank account, card and cash pot with starting vs current balance, money in/out, a distribution chart, balance trend, **transfers** and **pay off credit card**. |
+| **What I'm worth** | Own minus owe, 12-month trend, assets vs liabilities, how your wealth is spread, investment forecast. |
+| **Household** | Up to 6 people: each person's money in, out and saved, spend-to-income ratio, who pays for which category, full distribution table. |
+| **Everywhere** | Plain-language `?` explainers, Help page, undo on every change, light and dark themes, phone layout, works in any currency, backups, reusable year after year. |
 
 ## Project layout
 

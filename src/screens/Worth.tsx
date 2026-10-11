@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { ChevronRight, Plus } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
-import { TimeChart } from '../components/charts'
+import { Donut, MonthBars, TimeChart } from '../components/charts'
 import { Bar, Button, Card, CardHead, Explain, Num, Slider } from '../components/ui'
 import { balances, sum, worthNow } from '../lib/calc'
 import { addMonths, monthName, NOW, THIS_MONTH } from '../lib/dates'
@@ -87,7 +87,28 @@ export default function Worth() {
         {!s.debts.length && !s.holdings.some((h) => h.kind === 'owe') && <p className="px-2 py-6 text-center text-ink2">You don't owe anything. Brilliant.</p>}
       </Card>
 
-      <Card i={4} className="col-span-12">
+      <Card i={4} className="col-span-12 lg:col-span-5">
+        <CardHead title="How your wealth is spread" sub="Everything you own, grouped" />
+        {(() => {
+          const cash = Math.max(0, s.accounts.reduce((a, x) => a + Math.max(0, bal[x.id] || 0), 0))
+          const items = [{ name: 'Bank accounts', value: Math.round(cash), color: 'var(--s1)' }, ...Object.entries(groups).map(([g, l], i) => ({ name: g, value: Math.round(l.reduce((a, h) => a + +h.value, 0)), color: ['var(--s3)', 'var(--s7)', 'var(--s4)', 'var(--s5)', 'var(--s2)'][i % 5] }))].filter((x) => x.value > 0)
+          const tot = items.reduce((a, x) => a + x.value, 0) || 1
+          return (
+            <div className="flex flex-wrap items-center gap-5">
+              <Donut items={items} center={money0(w.own)} sub="you own" size={190} />
+              <ul className="flex min-w-[160px] flex-1 flex-col gap-2 text-[14px]">{items.map((x) => <li key={x.name} className="flex items-center gap-2"><i className="h-2.5 w-2.5 rounded-[3px]" style={{ background: x.color }} /><span className="flex-1">{x.name}</span><span className="text-muted">{Math.round((x.value / tot) * 100)}%</span><b className="tnum">{money0(x.value)}</b></li>)}</ul>
+            </div>
+          )
+        })()}
+      </Card>
+
+      <Card i={5} className="col-span-12 lg:col-span-7">
+        <CardHead title="Assets vs liabilities" sub="Month by month" />
+        <MonthBars data={months.map((m, i) => ({ label: monthName(m, false), own: hist[i] ? Math.round(hist[i]!.own) : 0, owe: hist[i] ? Math.round(hist[i]!.owe) : 0 }))}
+          series={[{ key: 'own', name: 'You own', color: 'var(--s3)' }, { key: 'owe', name: 'You owe', color: 'var(--s8)' }]} height={230} />
+      </Card>
+
+      <Card i={6} className="col-span-12">
         <CardHead title="What if I invest regularly?" sub={`Starting from the ${money0(invested)} you have invested today.`}
           help="Investing means putting money into things like funds that can grow over time. Growth is never guaranteed: values go up and down, especially in the short run. This is only an estimate." />
         <div className="grid grid-cols-12 gap-6">

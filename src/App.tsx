@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  CalendarClock, ChevronLeft, ChevronRight, Goal, HelpCircle, Home as HomeIcon, Landmark, LayoutGrid, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Wallet, X,
+  Banknote, BarChart3, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X,
 } from 'lucide-react'
 import { useEffect } from 'react'
 import Sheets from './components/Sheets'
@@ -17,18 +17,30 @@ import Onboarding from './screens/Onboarding'
 import Plan from './screens/Plan'
 import Settings from './screens/Settings'
 import Worth from './screens/Worth'
+import Accounts from './screens/Accounts'
+import Calendar from './screens/Calendar'
+import Household from './screens/Household'
+import Paycheck from './screens/Paycheck'
+import Year from './screens/Year'
+import Tour from './components/Tour'
 
-const NAV: { id: View; label: string; icon: typeof HomeIcon; sub: string; month?: boolean }[] = [
-  { id: 'home', label: 'Home', icon: HomeIcon, sub: '', month: true },
-  { id: 'activity', label: 'Activity', icon: ReceiptText, sub: 'Everything that came in or went out.', month: true },
-  { id: 'plan', label: 'My plan', icon: Wallet, sub: 'Decide how much to spend on each thing, then see how you are doing.', month: true },
-  { id: 'bills', label: 'Bills & pay', icon: CalendarClock, sub: 'Things that repeat every week, month or year. Set them once.', month: true },
-  { id: 'goals', label: 'Goals', icon: Goal, sub: 'Save up for the things that matter to you.', month: true },
-  { id: 'debts', label: 'Debts', icon: Scale, sub: 'See when you will be free of loans and cards, and how to get there faster.' },
-  { id: 'worth', label: "What I'm worth", icon: Landmark, sub: 'Everything you own minus everything you owe.' },
-  { id: 'settings', label: 'Settings', icon: Cog, sub: 'Names, currency, accounts and your data.' },
+type NavItem = { id: View; label: string; icon: typeof HomeIcon; sub: string; month?: boolean; group: string }
+const NAV: NavItem[] = [
+  { id: 'home', label: 'Home', icon: HomeIcon, sub: '', month: true, group: 'Every day' },
+  { id: 'activity', label: 'Activity', icon: ReceiptText, sub: 'Everything that came in or went out.', month: true, group: 'Every day' },
+  { id: 'calendar', label: 'Calendar', icon: CalendarDays, sub: 'Your month day by day, with bills, pay and your balance.', month: true, group: 'Every day' },
+  { id: 'bills', label: 'Bills & pay', icon: CalendarClock, sub: 'Things that repeat every week, month or year. Set them once.', month: true, group: 'Every day' },
+  { id: 'plan', label: 'My plan', icon: Wallet, sub: 'Decide how much to spend on each thing, then see how you are doing.', month: true, group: 'Planning' },
+  { id: 'paycheck', label: 'Paycheck', icon: Banknote, sub: 'Your money pay period by pay period, however often you are paid.', group: 'Planning' },
+  { id: 'year', label: 'My year', icon: BarChart3, sub: 'The whole year: totals, trends, every category and a look back.', group: 'Planning' },
+  { id: 'goals', label: 'Goals', icon: Goal, sub: 'Save up for the things that matter, and try a no-spend challenge.', month: true, group: 'Building wealth' },
+  { id: 'debts', label: 'Debts', icon: Scale, sub: 'See when you will be free of loans and cards, and how to get there faster.', group: 'Building wealth' },
+  { id: 'accounts', label: 'Accounts', icon: PiggyBank, sub: 'Your bank accounts, cards and cash, and money moved between them.', group: 'Building wealth' },
+  { id: 'worth', label: "What I'm worth", icon: Landmark, sub: 'Everything you own minus everything you owe.', group: 'Building wealth' },
+  { id: 'household', label: 'Household', icon: Users, sub: 'Who brings money in and who spends on what.', month: true, group: 'Together' },
+  { id: 'settings', label: 'Settings', icon: Cog, sub: 'Names, currency, accounts and your data.', group: 'Together' },
 ]
-const SCREENS: Record<View, () => JSX.Element> = { home: Home, activity: Activity, plan: Plan, bills: Bills, goals: Goals, debts: Debts, worth: Worth, settings: Settings }
+const SCREENS: Record<View, () => JSX.Element> = { home: Home, activity: Activity, calendar: Calendar, plan: Plan, paycheck: Paycheck, year: Year, bills: Bills, goals: Goals, debts: Debts, accounts: Accounts, worth: Worth, household: Household, settings: Settings }
 
 export default function App() {
   const data = useStore((s) => s.data)
@@ -50,6 +62,12 @@ export default function App() {
 function Shell() {
   const { view, go, open } = useUI()
   const sample = useStore((s) => s.data?.sample)
+  const toured = useStore((s) => s.data?.toured)
+  useEffect(() => {
+    if (toured) return
+    const t = setTimeout(() => { if (!useUI.getState().sheet) useUI.getState().setTour(true) }, 1400)
+    return () => clearTimeout(t)
+  }, [toured])
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       const t = e.target as HTMLElement
@@ -78,6 +96,7 @@ function Shell() {
       </main>
       <TabBar />
       <Sheets />
+      <Tour />
     </div>
   )
 }
@@ -85,28 +104,31 @@ function Shell() {
 function Sidebar() {
   const { view, go, open } = useUI()
   return (
-    <aside className="sticky top-0 hidden h-screen flex-col gap-6 bg-cover px-4 py-6 text-cover-ink lg:flex">
+    <aside className="sticky top-0 hidden h-screen flex-col gap-5 bg-cover px-4 py-6 text-cover-ink lg:flex">
       <div className="flex items-center gap-2.5 px-2 font-display text-[24px] font-extrabold">
         <span className="grid h-9 w-9 place-items-center rounded-xl bg-cover-ink text-cover"><Wallet size={18} /></span>Tally
       </div>
-      <Button variant="primary" size="lg" onClick={() => open({ type: 'quick' })} className="!bg-cover-ink !text-cover !border-transparent">
+      <span data-tour="add" className="contents"><Button variant="primary" size="lg" onClick={() => open({ type: 'quick' })} className="!bg-cover-ink !text-cover !border-transparent">
         <Plus size={20} />Add money in or out
-      </Button>
-      <nav className="flex flex-col gap-1" aria-label="Sections">
+      </Button></span>
+      <nav data-tour="nav" className="no-scrollbar -mx-1 flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto px-1" aria-label="Sections">
         {NAV.map((n, i) => {
-          const I = n.icon, on = view === n.id
+          const I = n.icon, on = view === n.id, head = i === 0 || NAV[i - 1].group !== n.group
           return (
-            <button key={n.id} type="button" onClick={() => go(n.id)} aria-current={on ? 'page' : undefined}
-              className={`relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-left font-semibold transition-colors ${on ? 'text-cover-ink' : 'text-cover-muted hover:text-cover-ink'}`}>
-              {on && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-xl bg-cover-hi" transition={{ type: 'spring', stiffness: 500, damping: 40 }} />}
-              <I size={19} className="relative" /><span className="relative flex-1">{n.label}</span><span className="relative text-[11px] opacity-50">{i + 1}</span>
-            </button>
+            <div key={n.id}>
+              {head && <p className={`px-3 pb-1 text-[10.5px] font-bold uppercase tracking-[.1em] text-cover-muted opacity-70 ${i ? 'pt-3' : ''}`}>{n.group}</p>}
+              <button type="button" onClick={() => go(n.id)} aria-current={on ? 'page' : undefined}
+                className={`relative flex w-full items-center gap-3 rounded-xl px-3 py-2 text-left font-semibold transition-colors ${on ? 'text-cover-ink' : 'text-cover-muted hover:text-cover-ink'}`}>
+                {on && <motion.span layoutId="nav-pill" className="absolute inset-0 rounded-xl bg-cover-hi" transition={{ type: 'spring', stiffness: 500, damping: 40 }} />}
+                <I size={18} className="relative" /><span className="relative flex-1">{n.label}</span>
+              </button>
+            </div>
           )
         })}
       </nav>
-      <div className="mt-auto flex flex-col gap-2">
-        <button type="button" onClick={() => open({ type: 'help' })} className="flex items-center gap-3 rounded-xl px-3 py-2.5 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><HelpCircle size={19} />Help & simple answers</button>
-        <p className="px-3 text-[12px] leading-relaxed text-cover-muted">Press <b>N</b> to add · <b>[</b> <b>]</b> to change month. Saved only on this device.</p>
+      <div className="flex flex-col gap-1">
+        <button type="button" data-tour="help" onClick={() => open({ type: 'help' })} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><HelpCircle size={18} />Help & simple answers</button>
+        <button type="button" onClick={() => { go('home'); setTimeout(() => useUI.getState().setTour(true), 300) }} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><Compass size={18} />Take the tour</button>
       </div>
     </aside>
   )
@@ -125,7 +147,7 @@ function TopBar() {
         </div>
       </div>
       {n.month && (
-        <div className="flex items-center rounded-2xl border border-line bg-surface p-1 shadow-card">
+        <div data-tour="month" className="flex items-center rounded-2xl border border-line bg-surface p-1 shadow-card">
           <button type="button" onClick={() => shiftMonth(-1)} className="grid h-9 w-9 place-items-center rounded-xl text-ink2 hover:bg-surface2 hover:text-ink" aria-label="Previous month"><ChevronLeft size={18} /></button>
           <AnimatePresence mode="wait">
             <motion.span key={month} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} className="min-w-[128px] text-center font-semibold">{monthName(month)}</motion.span>
@@ -134,7 +156,7 @@ function TopBar() {
           {month !== THIS_MONTH && <button type="button" onClick={() => setMonth(THIS_MONTH)} className="ml-1 rounded-xl px-2.5 py-1.5 text-[13px] font-semibold text-accent hover:bg-accent-soft">Today</button>}
         </div>
       )}
-      <Button variant="ghost" className="hidden sm:inline-flex lg:hidden" onClick={() => open({ type: 'help' })}><HelpCircle size={18} />Help</Button>
+      <span data-tour="help" className="lg:hidden"><Button variant="ghost" onClick={() => open({ type: 'help' })} ariaLabel="Help"><HelpCircle size={18} /><span className="hidden sm:inline">Help</span></Button></span>
     </header>
   )
 }
@@ -158,11 +180,11 @@ function TabBar() {
   const tabs: [View | 'more', string, typeof HomeIcon][] = [['home', 'Home', HomeIcon], ['activity', 'Activity', ReceiptText], ['plan', 'Plan', Wallet], ['more', 'More', LayoutGrid]]
   const moreOn = !['home', 'activity', 'plan'].includes(view)
   return (
-    <nav aria-label="Sections" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-2 pb-[calc(8px+env(safe-area-inset-bottom,0px))] pt-2 backdrop-blur lg:hidden" style={{ background: 'color-mix(in srgb, var(--surface) 92%, transparent)' }}>
+    <nav data-tour="nav" aria-label="Sections" className="fixed inset-x-0 bottom-0 z-40 border-t border-line bg-surface/95 px-2 pb-[calc(8px+env(safe-area-inset-bottom,0px))] pt-2 backdrop-blur lg:hidden" style={{ background: 'color-mix(in srgb, var(--surface) 92%, transparent)' }}>
       <div className="mx-auto grid max-w-md grid-cols-5 items-end">
         {tabs.slice(0, 2).map(([v, l, I]) => <Tab key={v} on={view === v} label={l} icon={I} onClick={() => go(v as View)} />)}
         <div className="flex justify-center">
-          <motion.button type="button" whileTap={{ scale: 0.9 }} onClick={() => open({ type: 'quick' })} aria-label="Add money in or out"
+          <motion.button data-tour="add" type="button" whileTap={{ scale: 0.9 }} onClick={() => open({ type: 'quick' })} aria-label="Add money in or out"
             className="-mt-7 grid h-16 w-16 place-items-center rounded-full bg-accent text-accent-ink shadow-pop ring-4 ring-[var(--bg)]">
             <Plus size={30} strokeWidth={2.5} />
           </motion.button>

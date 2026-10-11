@@ -10,6 +10,15 @@ const safeStorage = {
   removeItem: (n: string) => { try { localStorage.removeItem(n) } catch { /* storage unavailable */ } },
 }
 
+export function upgrade(d: State | null): State | null {
+  if (!d) return d
+  d.transfers ??= []
+  d.overrides ??= {}
+  d.reflections ??= {}
+  d.settings.payAnchor ??= THIS_MONTH + '-01'
+  d.settings.payDays ??= 14
+  return d
+}
 function stamp(d: State) {
   const w = worthNow(d)
   d.history[THIS_MONTH] = { own: Math.round(w.own), owe: Math.round(w.owe) }
@@ -34,16 +43,20 @@ export const useStore = create<DataStore>()(
         set({ data: next })
         return cur
       },
-      replace: (d) => { if (d) stamp(d); set({ data: d }) },
+      replace: (d) => { if (d) { upgrade(d); stamp(d) } set({ data: d }) },
     }),
-    { name: 'tally.v2', storage: createJSONStorage(() => safeStorage), partialize: (s) => ({ data: s.data }) },
+    {
+      name: 'tally.v2', storage: createJSONStorage(() => safeStorage), partialize: (s) => ({ data: s.data }),
+      // fill in fields added after a backup or an earlier visit was saved
+      merge: (saved, current) => ({ ...current, data: upgrade((saved as { data?: State | null })?.data ?? null) }),
+    },
   ),
 )
 export const useData = () => useStore((s) => s.data) as State
 export const update = (fn: (d: State) => void) => useStore.getState().update(fn)
 export const replaceData = (d: State | null) => useStore.getState().replace(d)
 
-export type View = 'home' | 'activity' | 'plan' | 'bills' | 'goals' | 'debts' | 'worth' | 'settings'
+export type View = 'home' | 'activity' | 'calendar' | 'plan' | 'paycheck' | 'year' | 'bills' | 'goals' | 'debts' | 'accounts' | 'worth' | 'household' | 'settings'
 export type SheetSpec =
   | { type: 'quick'; edit?: Tx; date?: string; kind?: Kind }
   | { type: 'bill'; id?: string }
@@ -57,12 +70,21 @@ export type SheetSpec =
   | { type: 'csv' }
   | { type: 'backup' }
   | { type: 'confirm'; title: string; text: string; label: string; run: () => void }
+  | { type: 'occ'; ruleId: string; date: string }
+  | { type: 'transfer'; id?: string; from?: string; to?: string }
 
+export interface Filter {
+  q: string; type: '' | Kind | 'bills'; cat: string; sub: string; person: string; status: '' | 'paid' | 'upcoming'
+  group: '' | 'essentials' | 'extras' | 'future'; account: string; scope: 'month' | 'year'; sort: 'newest' | 'oldest' | 'biggest' | 'smallest'
+}
+export const EMPTY_FILTER: Filter = { q: '', type: '', cat: '', sub: '', person: '', status: '', group: '', account: '', scope: 'month', sort: 'newest' }
 interface UIStore {
   view: View
   month: string
   sheet: SheetSpec | null
-  filter: { q: string; type: '' | Kind | 'bills'; cat: string }
+  filter: Filter
+  tour: boolean
+  setTour: (v: boolean) => void
   go: (v: View) => void
   setMonth: (k: string) => void
   shiftMonth: (n: number) => void
@@ -75,7 +97,9 @@ export const useUI = create<UIStore>()((set) => ({
   view: savedView,
   month: THIS_MONTH,
   sheet: null,
-  filter: { q: '', type: '', cat: '' },
+  filter: { ...EMPTY_FILTER },
+  tour: false,
+  setTour: (tour) => set({ tour }),
   go: (view) => { set({ view }); try { localStorage.setItem('tally.view', view) } catch { /* ignore */ } window.scrollTo({ top: 0, behavior: 'smooth' }) },
   setMonth: (month) => set({ month }),
   shiftMonth: (n) => set((s) => ({ month: addMonths(s.month, n) })),

@@ -44,10 +44,10 @@ export function Num({ value, format = money0, className = '' }: { value: number;
 }
 
 /* ---------- layout ---------- */
-export function Card({ children, className = '', i = 0, as = 'section' }: { children: ReactNode; className?: string; i?: number; as?: 'section' | 'article' | 'div' }) {
+export function Card({ children, className = '', i = 0, as = 'section', tour }: { children: ReactNode; className?: string; i?: number; as?: 'section' | 'article' | 'div'; tour?: string }) {
   const M = motion[as]
   return (
-    <M className={`card p-5 ${className}`} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+    <M data-tour={tour} className={`card p-5 ${className}`} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: Math.min(i, 10) * 0.05, ease: [0.16, 1, 0.3, 1] }}>
       {children}
     </M>

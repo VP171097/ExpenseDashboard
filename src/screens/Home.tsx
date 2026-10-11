@@ -4,9 +4,9 @@ import { useMemo, useState } from 'react'
 import { MonthBars, Spark, TimeChart } from '../components/charts'
 import { ItemRow, Jar, statusOf } from '../components/bits'
 import { Bar, Button, Card, CardHead, CatIcon, Chip, Empty, Explain, Num, Ring } from '../components/ui'
-import { health, monthPicture, monthStats, planFor, spendCats, sum, tips, upcoming } from '../lib/calc'
-import { addMonths, daysIn, fmtDate, monthName, pad } from '../lib/dates'
-import { money0 } from '../lib/money'
+import { health, monthItems, yearStats, monthPicture, monthStats, planFor, spendCats, sum, tips, upcoming } from '../lib/calc'
+import { addMonths, daysIn, fmtDate, monthName, pad, TODAY } from '../lib/dates'
+import { money0, pct } from '../lib/money'
 import { useData, useUI, type View } from '../lib/store'
 
 const JAR_COLORS = ['var(--s3)', 'var(--s1)', 'var(--s7)', 'var(--s5)', 'var(--s4)']
@@ -23,6 +23,8 @@ export default function Home() {
   const H = health(s, k)
   const tipList = tips(s, k)
   const bills = P.isCur ? upcoming(s, 14) : []
+  const yr = yearStats(s, +k.slice(0, 4))
+  const monthItemsK = monthItems(s, k)
 
   // compare with the same point of last month when looking at the current month
   const upTo = (a: number[]) => sum(a.slice(1, (P.isCur ? P.elapsed : 99) + 1))
@@ -58,7 +60,7 @@ export default function Home() {
   return (
     <div className="grid grid-cols-12 gap-4 lg:gap-5">
       {/* ---------- hero ---------- */}
-      <motion.section className="hero relative col-span-12 overflow-hidden rounded-[28px] p-6 shadow-card sm:p-8 xl:col-span-8"
+      <motion.section data-tour="safe" className="hero relative col-span-12 overflow-hidden rounded-[28px] p-6 shadow-card sm:p-8 xl:col-span-8"
         initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
         <div aria-hidden className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, var(--hero-ink), transparent 65%)' }} />
         <p className="text-[15px]" style={{ color: 'var(--hero-muted)' }}>{greeting}{s.settings.name ? `, ${s.settings.name}` : ''}</p>
@@ -97,7 +99,7 @@ export default function Home() {
       </motion.section>
 
       {/* ---------- money health ---------- */}
-      <Card i={1} className="col-span-12 md:col-span-6 xl:col-span-4">
+      <Card i={1} tour="health" className="col-span-12 md:col-span-6 xl:col-span-4">
         <CardHead title="Money health" help="A simple score out of 100 based on four habits: staying within your plan, saving regularly, paying bills on time and keeping a safety cushion." />
         <div className="flex items-center gap-4">
           <Ring value={H.score / 100} size={104} stroke={11} color={`var(--${H.tone})`}>
@@ -181,7 +183,7 @@ export default function Home() {
       </Card>
 
       {/* ---------- bills ---------- */}
-      <Card i={7} className="col-span-12 md:col-span-6 xl:col-span-4">
+      <Card i={7} tour="bills" className="col-span-12 md:col-span-6 xl:col-span-4">
         <CardHead title="Bills coming up" sub="Next two weeks. Tick them off once paid." right={bills.length ? <Chip tone="accent">{money0(sum(bills.map((b) => b.amount)))}</Chip> : undefined} />
         {bills.length ? (
           <div className="-mx-2 flex flex-col">
@@ -227,8 +229,36 @@ export default function Home() {
         ) : <Empty title="No goals yet" text="Saving for a trip, a car or a rainy day? Give it a jar." action={<Button variant="primary" onClick={() => open({ type: 'goal' })}>Start a goal</Button>} />}
       </Card>
 
+      {/* ---------- this month at a glance + year so far ---------- */}
+      <Card i={10} className="col-span-12 xl:col-span-8">
+        <CardHead title="This month at a glance" sub="Each square is a day. Darker means more spent." right={<Button variant="plain" onClick={() => go('calendar')}>Open calendar <ArrowRight size={15} /></Button>} />
+        <div className="grid grid-cols-7 gap-1.5 sm:grid-cols-[repeat(16,minmax(0,1fr))]">
+          {Array.from({ length: dim }, (_, i) => {
+            const d = i + 1, sp = m.byDay[d], mx = Math.max(1, ...m.byDay), ds = `${k}-${pad(d)}`
+            const bill = monthItemsK.some((t) => t.virtual && t.date === ds && t.type !== 'income')
+            return (
+              <button key={d} type="button" onClick={() => go('calendar')} title={`${fmtDate(ds)}: ${money0(sp)}`}
+                className={`relative grid aspect-square place-items-center rounded-lg text-[11.5px] font-bold ${ds === TODAY ? 'ring-2 ring-accent' : ''}`}
+                style={{ background: sp ? `color-mix(in srgb, var(--s2) ${Math.round(8 + (sp / mx) * 55)}%, var(--surface))` : 'var(--surface2)', color: ds > TODAY ? 'var(--muted)' : 'var(--ink)' }}>
+                {d}{bill && <i className="absolute bottom-1 h-1 w-1 rounded-full bg-s4" />}
+              </button>
+            )
+          })}
+        </div>
+        <p className="mt-2 text-[12.5px] text-muted">A small yellow dot marks a bill day.</p>
+      </Card>
+      <Card i={11} className="col-span-12 md:col-span-6 xl:col-span-4">
+        <CardHead title={`${k.slice(0, 4)} so far`} right={<Button variant="plain" onClick={() => go('year')}>My year <ArrowRight size={15} /></Button>} />
+        <div className="grid grid-cols-2 gap-3">
+          {[['Money in', yr.income, 'text-good'], ['Money out', yr.spent, ''], ['Put aside', yr.saved, 'text-accent'], ['Left over', yr.income - yr.spent - yr.saved, yr.income - yr.spent - yr.saved < 0 ? 'text-bad' : '']].map(([l, v, c]) => (
+            <div key={l as string} className="rounded-2xl bg-surface2 p-3"><p className="text-[12.5px] text-muted">{l}</p><p className={`font-display text-[20px] font-bold ${c}`}><Num value={v as number} /></p></div>
+          ))}
+        </div>
+        <p className="mt-3 text-[13.5px] text-ink2">You've put aside <b className="text-ink">{pct(yr.income ? yr.saved / yr.income : 0)}</b> of everything that came in this year.</p>
+      </Card>
+
       {/* ---------- month by month ---------- */}
-      <Card i={10} className="col-span-12">
+      <Card i={12} className="col-span-12">
         <CardHead title="Month by month" sub="Tap a month to look at it in detail" right={
           <div className="flex flex-wrap gap-4 text-[13px] text-ink2">
             {[['Money in', 'var(--s1)'], ['Money out', 'var(--s2)'], ['Put aside', 'var(--s3)']].map(([l, c]) => <span key={l} className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-[3px]" style={{ background: c }} />{l}</span>)}

@@ -1,4 +1,4 @@
-import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import { useReducedMotion } from 'framer-motion'
 import { money, moneyShort } from '../lib/money'
 
@@ -91,6 +91,31 @@ export function Spark({ values, color, height = 44 }: { values: number[]; color:
           <Area type="monotone" dataKey="v" stroke={color} strokeWidth={2} fill={`url(#${id})`} dot={false} isAnimationActive={false} />
         </AreaChart>
       </ResponsiveContainer>
+    </div>
+  )
+}
+
+/** Donut with a big total in the middle. Items are drawn in the order given. */
+export function Donut({ items, center, sub, size = 200 }: { items: { name: string; value: number; color: string }[]; center: string; sub?: string; size?: number }) {
+  const reduce = useReducedMotion()
+  const total = items.reduce((a, b) => a + b.value, 0) || 1
+  return (
+    <div className="relative mx-auto" style={{ width: size, height: size }}>
+      <ResponsiveContainer>
+        <PieChart>
+          <Pie data={items} dataKey="value" nameKey="name" innerRadius="66%" outerRadius="100%" paddingAngle={items.length > 1 ? 1.5 : 0} stroke="var(--surface)" strokeWidth={2}
+            startAngle={90} endAngle={-270} isAnimationActive={!reduce} animationDuration={900}>
+            {items.map((it) => <Cell key={it.name} fill={it.color} />)}
+          </Pie>
+          <Tooltip content={({ active, payload }) => active && payload?.length ? (
+            <div className="rounded-2xl border border-line2 bg-surface px-3.5 py-2.5 text-[13px] text-ink shadow-pop">
+              <b>{String(payload[0].name)}</b><div className="tnum">{money(Number(payload[0].value))} · {Math.round((Number(payload[0].value) / total) * 100)}%</div>
+            </div>) : null} />
+        </PieChart>
+      </ResponsiveContainer>
+      <div className="pointer-events-none absolute inset-0 grid place-items-center text-center">
+        <div><div className="font-display text-[22px] font-bold leading-tight">{center}</div>{sub && <div className="text-[12px] text-muted">{sub}</div>}</div>
+      </div>
     </div>
   )
 }

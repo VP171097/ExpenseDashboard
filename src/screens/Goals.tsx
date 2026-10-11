@@ -117,10 +117,45 @@ function Challenge() {
           </motion.div>
         ))}
       </div>
+      <YearChallenge />
       <div className="mt-3 flex flex-wrap gap-4 text-[12.5px] text-ink2">
         <span className="inline-flex items-center gap-1.5"><i className="h-3 w-3 rounded bg-good-soft" />No extras <Explain text="Nothing was spent on extras that day." /></span>
         <span className="inline-flex items-center gap-1.5"><i className="h-3 w-3 rounded bg-bad-soft" />Spent on extras</span>
       </div>
     </Card>
+  )
+}
+
+/** Challenge results for every month of the year. */
+function YearChallenge() {
+  const s = useData()
+  const target = s.settings.challengeTarget
+  const year = THIS_MONTH.slice(0, 4)
+  const months = Array.from({ length: 12 }, (_, i) => `${year}-${pad(i + 1)}`)
+  const rows = months.map((k) => {
+    if (k > THIS_MONTH) return { k, n: null as number | null }
+    const m = monthStats(s, k), last = k === THIS_MONTH ? NOW.getDate() : daysIn(k)
+    let n = 0
+    for (let d = 1; d <= last; d++) if (!m.extrasDay[d]) n++
+    return { k, n }
+  })
+  const won = rows.filter((r) => r.n != null && r.n >= target).length
+  return (
+    <div className="mt-6 border-t border-line pt-5">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2"><p className="font-bold">Your {year} so far</p><p className="text-[13.5px] text-ink2">Target reached in <b className="text-ink">{won}</b> month{won === 1 ? '' : 's'}</p></div>
+      <div className="grid grid-cols-6 gap-2 sm:grid-cols-12">
+        {rows.map((r, i) => (
+          <div key={r.k} className="flex flex-col items-center gap-1">
+            <div className="relative flex h-20 w-full items-end overflow-hidden rounded-xl bg-surface2">
+              {r.n != null && <motion.div className="w-full rounded-xl" style={{ background: r.n >= target ? 'var(--good)' : 'var(--s1)' }} initial={{ height: 0 }} animate={{ height: `${Math.min(1, r.n / 31) * 100}%` }} transition={{ delay: i * 0.04, duration: 0.7 }} />}
+              <span className="absolute inset-x-0 border-t-2 border-dashed border-ink2" style={{ bottom: `${(target / 31) * 100}%` }} />
+            </div>
+            <span className="text-[11.5px] font-semibold text-muted">{monthName(r.k, false)}</span>
+            <span className="tnum text-[12px] font-bold">{r.n ?? '–'}</span>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-[12.5px] text-muted">Dashed line is your target. Green bars reached it.</p>
+    </div>
   )
 }

@@ -1,16 +1,16 @@
 import { addDays, addMonths, addMonthsDate, iso, NOW, pad, parse, THIS_MONTH, TODAY } from './dates'
 import { uid } from './calc'
-import type { Category, Freq, Rule, Settings, State, Tx } from './types'
+import type { Category, Freq, Rule, Settings, State, Transfer, Tx } from './types'
 
 export function baseCategories(): Category[] {
   return [
     { id: 'housing', name: 'Home', kind: 'expense', group: 'essentials', plan: 1650, slot: 0, icon: 'home' },
-    { id: 'groceries', name: 'Groceries', kind: 'expense', group: 'essentials', plan: 560, slot: 1, icon: 'cart' },
-    { id: 'dining', name: 'Eating out', kind: 'expense', group: 'extras', plan: 240, slot: 2, icon: 'food' },
-    { id: 'transport', name: 'Getting around', kind: 'expense', group: 'essentials', plan: 260, slot: 3, icon: 'car' },
+    { id: 'groceries', name: 'Groceries', kind: 'expense', group: 'essentials', plan: 560, slot: 1, icon: 'cart', subs: ['Supermarket', 'Market', 'Bakery'] },
+    { id: 'dining', name: 'Eating out', kind: 'expense', group: 'extras', plan: 240, slot: 2, icon: 'food', subs: ['Restaurants', 'Coffee', 'Takeaway'] },
+    { id: 'transport', name: 'Getting around', kind: 'expense', group: 'essentials', plan: 260, slot: 3, icon: 'car', subs: ['Fuel', 'Public transport', 'Parking', 'Car upkeep'] },
     { id: 'utilities', name: 'Energy & phone', kind: 'expense', group: 'essentials', plan: 210, slot: 4, icon: 'bolt' },
     { id: 'subs', name: 'Subscriptions', kind: 'expense', group: 'extras', plan: 75, slot: 5, icon: 'tv' },
-    { id: 'shopping', name: 'Shopping', kind: 'expense', group: 'extras', plan: 220, slot: 6, icon: 'bag' },
+    { id: 'shopping', name: 'Shopping', kind: 'expense', group: 'extras', plan: 220, slot: 6, icon: 'bag', subs: ['Clothes', 'Home', 'Electronics', 'Books'] },
     { id: 'debt', name: 'Loan payments', kind: 'expense', group: 'essentials', plan: 470, slot: 7, icon: 'card' },
     { id: 'health', name: 'Health', kind: 'expense', group: 'essentials', plan: 90, slot: null, icon: 'heart' },
     { id: 'fun', name: 'Fun & hobbies', kind: 'expense', group: 'extras', plan: 110, slot: null, icon: 'ticket' },
@@ -27,7 +27,7 @@ export function baseCategories(): Category[] {
 export function baseSettings(): Settings {
   return {
     name: '', currency: 'EUR', ratios: [50, 30, 20], rollover: false, weekStart: 1, payCycle: 'monthly', challengeTarget: 12,
-    extra: 150, strategy: 'cheapest', forecast: { monthly: 400, rate: 6, years: 15 }, theme: 'system',
+    extra: 150, strategy: 'cheapest', forecast: { monthly: 400, rate: 6, years: 15 }, theme: 'system', payAnchor: TODAY, payDays: 14,
   }
 }
 export function emptyState(currency = 'EUR'): State {
@@ -37,7 +37,7 @@ export function emptyState(currency = 'EUR'): State {
       { id: 'chk', name: 'Everyday account', type: 'everyday', start: 0 },
       { id: 'sav', name: 'Savings account', type: 'savings', start: 0 },
     ],
-    categories: baseCategories(), tx: [], rules: [], paid: {}, skip: {}, goals: [], debts: [], holdings: [], history: {},
+    categories: baseCategories(), tx: [], rules: [], paid: {}, skip: {}, goals: [], debts: [], holdings: [], history: {}, transfers: [], overrides: {}, reflections: {},
     settings: { ...baseSettings(), currency },
   }
 }
@@ -75,11 +75,12 @@ export function sampleState(): State {
     rule('Move to savings', 'savings', 'savings', 1500, 'monthly', 26, 'Alex', 'sav'),
     rule('Investing plan', 'savings', 'invest', 500, 'monthly', 27, 'Sam'),
   ]
+  /* note -> sub-category */
   const notes: Record<string, string[]> = {
-    groceries: ['Supermarket', 'Farmers market', 'Corner bakery', 'Weekly shop', 'Butcher'],
-    dining: ['Pizza night', 'Coffee & cake', 'Sushi', 'Brunch', 'Takeaway curry', 'Lunch with friends'],
-    transport: ['Fuel', 'Train tickets', 'Parking', 'Bike repair', 'Bus pass'],
-    shopping: ['Clothes', 'Home bits', 'Books', 'Headphones', 'Kitchen stuff'],
+    groceries: ['Weekly shop|Supermarket', 'Supermarket|Supermarket', 'Farmers market|Market', 'Corner bakery|Bakery', 'Butcher|Market'],
+    dining: ['Pizza night|Restaurants', 'Coffee & cake|Coffee', 'Sushi|Restaurants', 'Brunch|Restaurants', 'Takeaway curry|Takeaway', 'Flat white|Coffee'],
+    transport: ['Fuel|Fuel', 'Train tickets|Public transport', 'Parking|Parking', 'Bike repair|Car upkeep', 'Bus pass|Public transport'],
+    shopping: ['Clothes|Clothes', 'Home bits|Home', 'Books|Books', 'Headphones|Electronics', 'Kitchen stuff|Home'],
     health: ['Pharmacy', 'Dentist', 'Physio'],
     fun: ['Cinema', 'Concert', 'Board game café', 'Museum'],
     travel: ['Weekend away', 'Hotel', 'Flights'],
@@ -88,8 +89,12 @@ export function sampleState(): State {
     otherin: ['Tax refund', 'Cashback'],
   }
   const tx: Tx[] = []
-  const add = (date: string, type: Tx['type'], cat: string, amount: number) =>
-    tx.push({ id: uid(), date, type, cat, amount, account: 'chk', person: pick(people), note: pick(notes[cat] ?? ['Purchase']) })
+  const add = (date: string, type: Tx['type'], cat: string, amount: number) => {
+    const [note, sub] = pick(notes[cat] ?? ['Purchase']).split('|')
+    const account = cat === 'shopping' || (cat === 'dining' && r() < 0.5) ? 'cc' : 'chk'
+    tx.push({ id: uid(), date, type, cat, amount, account, person: pick(people), note, ...(sub ? { sub } : {}) })
+  }
+  const transfers: Transfer[] = []
   for (let d = parse(s0 + '-01'); iso(d) <= TODAY; d = addDays(d, 1)) {
     const ds = iso(d), mo = d.getMonth(), wk = d.getDay() === 0 || d.getDay() === 6, dec = mo === 11, summer = mo >= 5 && mo <= 7
     if (r() < 0.3) add(ds, 'expense', 'groceries', R(16, 96))
@@ -102,6 +107,12 @@ export function sampleState(): State {
     if (r() < (dec ? 0.12 : 0.012)) add(ds, 'expense', 'gifts', R(15, 80))
     if (r() < 0.018) add(ds, 'income', 'side', R(180, 640))
     if (r() < 0.005) add(ds, 'income', 'otherin', R(25, 160))
+  }
+  // pay the credit card off from the everyday account each month
+  for (let i = 12; i >= 1; i--) {
+    const k = addMonths(THIS_MONTH, -i)
+    const owed = tx.filter((t) => t.account === 'cc' && t.date.startsWith(k)).reduce((a, t) => a + t.amount, 0)
+    if (owed > 0) transfers.push({ id: uid(), date: `${addMonths(k, 1)}-04`, from: 'chk', to: 'cc', amount: Math.round(owed * 100) / 100, note: 'Credit card payment' })
   }
   const due = (n: number) => iso(addMonthsDate(NOW, n))
   const st: State = {
@@ -129,8 +140,8 @@ export function sampleState(): State {
       { id: uid(), name: 'Car', kind: 'own', group: 'Things', value: 11500 },
       { id: uid(), name: 'Loan from family', kind: 'owe', group: 'Personal', value: 600 },
     ],
-    history: {},
-    settings: { ...baseSettings(), name: 'Alex' },
+    history: {}, transfers, overrides: {}, reflections: {},
+    settings: { ...baseSettings(), name: 'Alex', payAnchor: `${s0}-25` },
   }
   return st
 }

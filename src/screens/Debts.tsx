@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Pencil, Plus, Rabbit, Scale } from 'lucide-react'
+import { ChevronDown, ChevronUp, ListOrdered, Pencil, Plus, Rabbit, Scale } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { TimeChart } from '../components/charts'
 import { Button, Card, CardHead, celebrate, Chip, Empty, Explain, Num, Slider } from '../components/ui'
@@ -29,12 +29,12 @@ export default function Debts() {
   )
   const strat = s.settings.strategy
   const plan = simulate(D, extra, strat)
-  const other = simulate(D, extra, strat === 'cheapest' ? 'quickwins' : 'cheapest')
+  const sims = { cheapest: simulate(D, extra, 'cheapest'), quickwins: simulate(D, extra, 'quickwins'), custom: simulate(D, extra, 'custom') }
   const mins = simulate(D, 0, strat)
   const total = sum(D.map((d) => +d.balance))
   const n = Math.max(plan.line.length, mins.line.length)
   const data = Array.from({ length: n }, (_, i) => ({ m: i, plan: i < plan.line.length ? Math.round(plan.line[i]) : null, mins: i < mins.line.length ? Math.round(mins.line[i]) : null }))
-  const order = [...D].sort((a, b) => (plan.payoff[a.id] || 999) - (plan.payoff[b.id] || 999))
+  const order = strat === 'custom' ? [...D].sort((a, b) => (a.order ?? D.indexOf(a)) - (b.order ?? D.indexOf(b))) : [...D].sort((a, b) => (plan.payoff[a.id] || 999) - (plan.payoff[b.id] || 999))
 
   return (
     <div className="grid grid-cols-12 gap-4 lg:gap-5">
@@ -51,8 +51,8 @@ export default function Debts() {
       <Card i={1} className="col-span-12 lg:col-span-5">
         <CardHead title="Choose your way" sub="Pay the minimum on everything, then put any extra on one debt at a time." />
         <div className="grid gap-3">
-          {([['cheapest', Scale, 'Cheapest way', 'Pay off the highest interest first. You pay the least in total.'], ['quickwins', Rabbit, 'Quick wins', 'Pay off the smallest debt first. Each one gone feels great and keeps you going.']] as const).map(([v, I, t, d]) => {
-            const r = v === strat ? plan : other
+          {([['cheapest', Scale, 'Cheapest way', 'Pay off the highest interest first. You pay the least in total.'], ['quickwins', Rabbit, 'Quick wins', 'Pay off the smallest debt first. Each one gone feels great and keeps you going.'], ['custom', ListOrdered, 'My own order', 'You choose which debt to clear first. Use the arrows on each debt below.']] as const).map(([v, I, t, d]) => {
+            const r = sims[v]
             return (
               <motion.button key={v} type="button" whileTap={{ scale: 0.98 }} onClick={() => update((x) => { x.settings.strategy = v })} aria-pressed={strat === v}
                 className={`flex gap-3 rounded-2xl border-2 p-4 text-left transition-colors ${strat === v ? 'border-accent bg-accent-soft' : 'border-line hover:border-line2'}`}>
@@ -84,14 +84,21 @@ export default function Debts() {
       <Card i={3} className="col-span-12">
         <CardHead title="The order to pay them off" sub="Made a payment on top of the usual? Log it and the balance goes down." right={<Button onClick={() => open({ type: 'debt' })}><Plus size={16} />Add</Button>} />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {order.map((d, i) => <DebtCard key={d.id} id={d.id} i={i} payoffIn={plan.payoff[d.id]} />)}
+          {order.map((d, i) => <DebtCard key={d.id} id={d.id} i={i} payoffIn={plan.payoff[d.id]} per={plan.per[d.id]} custom={strat === 'custom'} count={order.length} />)}
         </div>
       </Card>
     </div>
   )
 }
 
-function DebtCard({ id, i, payoffIn }: { id: string; i: number; payoffIn?: number }) {
+function DebtCard({ id, i, payoffIn, per, custom, count }: { id: string; i: number; payoffIn?: number; per?: { interest: number; paid: number }; custom: boolean; count: number }) {
+  const move = (dir: -1 | 1) => update((x) => {
+    const list = [...x.debts].sort((a, b) => (a.order ?? x.debts.indexOf(a)) - (b.order ?? x.debts.indexOf(b)))
+    const at = list.findIndex((d) => d.id === id), to = at + dir
+    if (to < 0 || to >= list.length) return
+    ;[list[at], list[to]] = [list[to], list[at]]
+    list.forEach((d, n) => { x.debts.find((y) => y.id === d.id)!.order = n })
+  })
   const s = useData()
   const open = useUI((u) => u.open)
   const d = s.debts.find((x) => x.id === id)!
@@ -118,12 +125,17 @@ function DebtCard({ id, i, payoffIn }: { id: string; i: number; payoffIn?: numbe
           <p className="truncate font-bold">{d.name}</p>
           <p className="text-[13px] text-ink2">{d.rate}% interest a year · min {money(d.min)} a month</p>
         </div>
+        {custom && <span className="flex flex-col">
+          <button type="button" disabled={i === 0} onClick={() => move(-1)} className="grid h-5 w-7 place-items-center rounded text-muted hover:text-ink disabled:opacity-30" aria-label={`Pay ${d.name} sooner`}><ChevronUp size={16} /></button>
+          <button type="button" disabled={i === count - 1} onClick={() => move(1)} className="grid h-5 w-7 place-items-center rounded text-muted hover:text-ink disabled:opacity-30" aria-label={`Pay ${d.name} later`}><ChevronDown size={16} /></button>
+        </span>}
         <button type="button" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-ink" onClick={() => open({ type: 'debt', id })} aria-label={`Edit ${d.name}`}><Pencil size={15} /></button>
       </div>
       <div className="flex items-end justify-between gap-2">
         <div><p className="label">Still owed</p><p className="font-display text-[26px] font-bold leading-none"><Num value={d.balance} /></p></div>
         {payoffIn ? <Chip tone={i === 0 ? 'accent' : 'plain'}>Gone by {addMonthsDate(NOW, payoffIn).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</Chip> : <Chip tone="bad">Not in sight</Chip>}
       </div>
+      {per && <div className="grid grid-cols-2 gap-2 text-[12.5px]"><div className="rounded-xl bg-surface2 p-2"><span className="text-muted">Interest you'll pay</span><b className="tnum block text-[14px]">{money0(per.interest)}</b></div><div className="rounded-xl bg-surface2 p-2"><span className="text-muted">Total you'll pay</span><b className="tnum block text-[14px]">{money0(per.paid)}</b></div></div>}
       {i === 0 && <p className="text-[13px] text-ink2">Your extra money goes here first.</p>}
       <form onSubmit={log} className="flex gap-2">
         <input className="field !py-2" type="number" min="0" step="any" inputMode="decimal" placeholder="Extra paid" value={amt} onChange={(e) => setAmt(e.target.value)} aria-label={`Extra payment for ${d.name}`} />

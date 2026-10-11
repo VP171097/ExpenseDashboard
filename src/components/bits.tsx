@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion'
-import { Check, Repeat } from 'lucide-react'
+import { AlertTriangle, Check, Repeat } from 'lucide-react'
 import { useId } from 'react'
 import { catOf, isPaid, ruleKey } from '../lib/calc'
 import { fmtDate } from '../lib/dates'
@@ -26,13 +26,14 @@ export function PayToggle({ item, compact = false }: { item: Item; compact?: boo
   const s = useData()
   const r = s.rules.find((x) => x.id === item.ruleId)
   if (!r) return null
-  const paid = isPaid(s, r, item.date)
+  const occ = item.occ ?? item.date
+  const paid = isPaid(s, r, occ)
   const word = item.type === 'income' ? (paid ? 'Received' : 'Expected') : paid ? 'Paid' : compact ? 'Pay' : 'Mark paid'
   return (
     <motion.button type="button" whileTap={{ scale: 0.92 }} aria-pressed={paid}
       title={paid ? 'Tap to mark as not paid' : item.type === 'income' ? 'Tap when this money arrives' : 'Tap when this has been paid'}
       onClick={(e) => {
-        update((d) => { d.paid[ruleKey(r.id, item.date)] = !paid })
+        update((d) => { d.paid[ruleKey(r.id, occ)] = !paid })
         if (!paid) { celebrate(e); toast(`${r.name} ${item.type === 'income' ? 'received' : 'paid'}. Nice!`, null, 'good') }
       }}
       className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border py-1.5 pl-1.5 pr-3 text-[13px] font-semibold transition-colors ${paid ? 'border-transparent bg-accent-soft text-accent' : 'border-line2 bg-surface text-ink2 hover:border-accent hover:text-ink'}`}>
@@ -51,12 +52,12 @@ export function Amount({ item, className = '' }: { item: Pick<Item, 'type' | 'am
 }
 
 /** One row in activity lists. Clicking opens it for editing. */
-export function ItemRow({ item, showDate = false }: { item: Item; showDate?: boolean }) {
+export function ItemRow({ item, showDate = false, dup = false }: { item: Item; showDate?: boolean; dup?: boolean }) {
   const s = useData()
   const open = useUI((u) => u.open)
   const c = catOf(s, item.cat)
   const openIt = () => {
-    if (item.virtual) open({ type: 'bill', id: item.ruleId })
+    if (item.virtual) open({ type: 'occ', ruleId: item.ruleId!, date: item.occ ?? item.date })
     else { const t = s.tx.find((x) => x.id === item.id); if (t) open({ type: 'quick', edit: t }) }
   }
   return (
@@ -68,7 +69,9 @@ export function ItemRow({ item, showDate = false }: { item: Item; showDate?: boo
           <span className={`block truncate font-semibold ${item.paid ? '' : 'italic'}`}>{item.note || c?.name}</span>
           <span className="flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-muted">
             {showDate && <span>{fmtDate(item.date)}</span>}
-            <span>{c?.name}</span>
+            <span>{c?.name}{item.sub ? ` · ${item.sub}` : ''}</span>
+            {dup && <span className="inline-flex items-center gap-0.5 font-semibold text-warn"><AlertTriangle size={11} /> twice?</span>}
+            {item.changed && <span className="font-semibold text-accent">changed</span>}
             {item.virtual && <span className="inline-flex items-center gap-0.5" title="Repeats regularly"><Repeat size={11} />{showDate ? '' : ' regular'}</span>}
             {!showDate && item.person && s.people.length > 1 && <span>· {item.person}</span>}
           </span>

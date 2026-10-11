@@ -61,6 +61,8 @@ export default function Onboarding() {
   const build = () => {
     const s: State = emptyState(currency)
     s.settings.name = name.trim()
+    s.settings.payCycle = cycle
+    s.settings.payAnchor = payday
     s.people = [name.trim() || 'Me', ...(partner.trim() ? [partner.trim()] : [])]
     s.categories = baseCategories().map((c) => ({ ...c, plan: 0 }))
     const plan = (id: string, v: number) => { const c = s.categories.find((x) => x.id === id); if (c) c.plan = Math.round((c.plan + v) / 5) * 5 }

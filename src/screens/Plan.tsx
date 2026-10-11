@@ -1,19 +1,19 @@
 import { motion } from 'framer-motion'
-import { Minus, Pencil, Plus, Wand2 } from 'lucide-react'
+import { Banknote, Minus, Pencil, Plus, Wand2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { statusOf } from '../components/bits'
-import { Bar, Button, Card, CardHead, CatIcon, Chip, Explain, Num, Segmented, Slider, Switch } from '../components/ui'
+import { Bar, Button, Card, CardHead, CatIcon, Chip, Explain, Num, Slider, Switch } from '../components/ui'
 import { monthPicture, monthStats, perMonth, planFor, spendCats, sum } from '../lib/calc'
 import { addMonths, monthName } from '../lib/dates'
 import { money0 } from '../lib/money'
-import { toast, update, useData, useUI } from '../lib/store'
-import type { Category, Settings } from '../lib/types'
+import { EMPTY_FILTER, toast, update, useData, useUI } from '../lib/store'
+import type { Category } from '../lib/types'
 
 const GROUP_WORD = { essentials: 'Essential', extras: 'Extra', future: 'Future' } as const
 
 export default function Plan() {
   const s = useData()
-  const { month: k, open } = useUI()
+  const { month: k, open, go, setFilter } = useUI()
   const P = monthPicture(s, k)
   const m = P.m
   const cats = spendCats(s)
@@ -24,13 +24,11 @@ export default function Plan() {
   const [r0, r1, r2] = s.settings.ratios
   const ess = sum(cats.filter((c) => c.group === 'essentials').map((c) => planFor(s, c, k)))
   const ext = sum(cats.filter((c) => c.group !== 'essentials').map((c) => planFor(s, c, k)))
-  const cyc = s.settings.payCycle
-  const per = { weekly: 52 / 12, biweekly: 26 / 12, semimonthly: 2, monthly: 1 }[cyc]
 
   const split = [
-    { label: 'Essentials', v: ess, color: 'var(--s1)', target: r0, help: 'Things you need: home, food shopping, energy, getting to work, loan payments.' },
-    { label: 'Extras', v: ext, color: 'var(--s5)', target: r1, help: 'Nice-to-haves: eating out, shopping, fun, trips, subscriptions.' },
-    { label: 'Future you', v: savePlanned, color: 'var(--s3)', target: r2, help: 'Savings and investing. Paying yourself first is the most reliable way to build up money.' },
+    { label: 'Essentials', group: 'essentials' as const, v: ess, color: 'var(--s1)', target: r0, help: 'Things you need: home, food shopping, energy, getting to work, loan payments.' },
+    { label: 'Extras', group: 'extras' as const, v: ext, color: 'var(--s5)', target: r1, help: 'Nice-to-haves: eating out, shopping, fun, trips, subscriptions.' },
+    { label: 'Future you', group: 'future' as const, v: savePlanned, color: 'var(--s3)', target: r2, help: 'Savings and investing. Paying yourself first is the most reliable way to build up money.' },
   ]
 
   return (
@@ -71,27 +69,21 @@ export default function Plan() {
             const share = income ? x.v / income : 0
             const ok = x.label === 'Future you' ? share * 100 >= x.target - 0.5 : share * 100 <= x.target + 0.5
             return (
-              <div key={x.label}>
+              <button type="button" key={x.label} className="rounded-xl p-1 text-left hover:bg-surface2" onClick={() => { setFilter({ ...EMPTY_FILTER, group: x.group }); go('activity') }} title={`See all ${x.label.toLowerCase()} payments`}>
                 <div className="mb-1.5 flex items-center justify-between gap-2 text-[14px]">
                   <span className="flex items-center gap-1 font-semibold">{x.label}<Explain text={x.help} /></span>
                   <span className="flex items-center gap-2"><b className="tnum">{Math.round(share * 100)}%</b><span className="text-muted">aim {x.target}%</span><Chip tone={ok ? 'good' : 'warn'}>{ok ? 'Good' : x.label === 'Future you' ? 'A bit low' : 'A bit high'}</Chip></span>
                 </div>
                 <Bar value={share} marker={x.target / 100} color={x.color} label={x.label} />
-              </div>
+              </button>
             )
           })}
         </div>
       </Card>
 
       <Card i={2}>
-        <CardHead title="Per paycheck" sub="The same plan, split by how often you're paid" />
-        <Segmented label="How often you're paid" value={cyc} onChange={(v: Settings['payCycle']) => update((d) => { d.settings.payCycle = v })}
-          options={[['weekly', 'Weekly'], ['biweekly', '2 weeks'], ['semimonthly', 'Twice a month'], ['monthly', 'Monthly']]} />
-        <div className="mt-4 grid grid-cols-2 gap-3">
-          {[['Each paycheck', income / per], ['Spending', P.plan / per], ['Put aside', savePlanned / per], ['Left over', free / per]].map(([l, v]) => (
-            <div key={l as string} className="rounded-2xl bg-surface2 p-3.5"><p className="label">{l}</p><p className={`font-display text-[22px] font-bold ${(v as number) < 0 ? 'text-bad' : ''}`}><Num value={v as number} /></p></div>
-          ))}
-        </div>
+        <CardHead title="Per paycheck" sub="See your plan pay period by pay period, with bills and spending for each one." />
+        <Button variant="primary" onClick={() => go('paycheck')}><Banknote size={16} />Open paycheck view</Button>
       </Card>
       </div>
 
@@ -103,12 +95,12 @@ export default function Plan() {
         <Button onClick={() => open({ type: 'category' })}><Plus size={16} />New pot</Button>
       </div>
 
-      {cats.map((c, i) => <Pot key={c.id} c={c} i={i} spent={m.byCat[c.id] || 0} plan={planFor(s, c, k)} usual={sum([1, 2, 3].map((n) => monthStats(s, addMonths(k, -n)).byCat[c.id] || 0)) / 3} />)}
+      {cats.map((c, i) => <Pot key={c.id} c={c} i={i} subs={m.bySub[c.id]} spent={m.byCat[c.id] || 0} plan={planFor(s, c, k)} usual={sum([1, 2, 3].map((n) => monthStats(s, addMonths(k, -n)).byCat[c.id] || 0)) / 3} />)}
     </div>
   )
 }
 
-function Pot({ c, i, spent, plan, usual }: { c: Category; i: number; spent: number; plan: number; usual: number }) {
+function Pot({ c, i, spent, plan, usual, subs }: { c: Category; i: number; spent: number; plan: number; usual: number; subs?: Record<string, number> }) {
   const open = useUI((u) => u.open)
   const rollover = useData().settings.rollover
   const [val, setVal] = useState(c.plan)
@@ -143,6 +135,11 @@ function Pot({ c, i, spent, plan, usual }: { c: Category; i: number; spent: numb
       </div>
       <Bar value={effective ? spent / effective : spent ? 1 : 0} color={st.color} label={`${c.name}: spent ${money0(spent)} of ${money0(effective)}`} />
       <p className="text-[13px] text-ink2">Spent <b className="text-ink">{money0(spent)}</b> of <b className="text-ink">{money0(effective)}</b>{rollover && Math.round(plan - c.plan) !== 0 ? ` (includes ${money0(plan - c.plan)} carried over)` : ''}</p>
+      {subs && Object.keys(subs).some(Boolean) && (
+        <div className="flex flex-wrap gap-1.5">
+          {Object.entries(subs).sort((a, b) => b[1] - a[1]).map(([n, v]) => <span key={n || '-'} className="rounded-full bg-surface2 px-2.5 py-0.5 text-[12px] text-ink2">{n || 'Other'} <b className="tnum text-ink">{money0(v)}</b></span>)}
+        </div>
+      )}
       <div className="rounded-2xl bg-surface2 p-3">
         <div className="flex items-center justify-between gap-2 text-[13.5px]">
           <span className="font-semibold">Monthly plan</span>

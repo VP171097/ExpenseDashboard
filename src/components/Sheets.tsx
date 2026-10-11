@@ -1,10 +1,12 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  ArrowLeft, CalendarClock, ChevronDown, Copy, Delete, Download, Goal, HelpCircle, Landmark, Scale, Settings as Cog, Trash2, Upload,
+  ArrowLeft, Banknote, BarChart3, CalendarClock, CalendarDays, ChevronDown, Compass, Copy, Delete, Download, FileSpreadsheet, Goal, HelpCircle, Landmark, Repeat, Scale, Settings as Cog, Trash2, Upload, Users, Wallet,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { catOf, FREQ, monthsUntil, uid } from '../lib/calc'
-import { addDays, addMonthsDate, iso, NOW, TODAY } from '../lib/dates'
+import { catOf, findDuplicate, FREQ, isPaid, monthsUntil, ruleKey, uid } from '../lib/calc'
+import { saveFile, workbook } from '../lib/files'
+import { addDays, addMonthsDate, iso, NOW, THIS_MONTH, TODAY } from '../lib/dates'
+import { balances } from '../lib/calc'
 import { importCsv, toCsv } from '../lib/io'
 import { money, symbol } from '../lib/money'
 import { replaceData, toast, update, useData, useStore, useUI, type SheetSpec, type View } from '../lib/store'
@@ -27,11 +29,12 @@ export default function Sheets() {
     goal: spec?.type === 'goal' && spec.id ? 'Edit goal' : 'New savings goal', debt: spec?.type === 'debt' && spec.id ? 'Edit loan or card' : 'Add a loan or card',
     holding: spec?.type === 'holding' && spec.id ? 'Edit' : spec?.type === 'holding' && spec.kind === 'owe' ? 'Add something you owe' : 'Add something you own',
     account: spec?.type === 'account' && spec.id ? 'Edit account' : 'Add account', category: spec?.type === 'category' && spec.id ? 'Edit category' : 'New category',
-    help: 'Help & simple answers', more: 'More', csv: 'Import from your bank', backup: 'Back up & export', confirm: spec?.type === 'confirm' ? spec.title : '',
+    help: 'Help & simple answers', more: 'Everything in Tally', csv: 'Import from your bank', backup: 'Back up & export', confirm: spec?.type === 'confirm' ? spec.title : '',
+    occ: 'This payment', transfer: spec?.type === 'transfer' && spec.id ? 'Edit transfer' : 'Move money between accounts',
   }
   return (
     <>
-      {(['quick', 'bill', 'goal', 'debt', 'holding', 'account', 'category', 'help', 'more', 'csv', 'backup', 'confirm'] as const).map((t) => (
+      {(['quick', 'bill', 'goal', 'debt', 'holding', 'account', 'category', 'help', 'more', 'csv', 'backup', 'confirm', 'occ', 'transfer'] as const).map((t) => (
         <Sheet key={t} open={is(t)} onClose={close} title={titles[t]} wide={t === 'help' || t === 'backup'}>
           {spec?.type === t && <Body key={key} spec={spec} />}
         </Sheet>
@@ -54,6 +57,8 @@ function Body({ spec }: { spec: SheetSpec }) {
     case 'csv': return <CsvImport />
     case 'backup': return <Backup />
     case 'confirm': return <Confirm spec={spec} />
+    case 'occ': return <OccForm ruleId={spec.ruleId} date={spec.date} />
+    case 'transfer': return <TransferForm id={spec.id} from={spec.from} to={spec.to} />
   }
 }
 
@@ -92,6 +97,9 @@ function QuickAdd({ spec }: { spec: Extract<SheetSpec, { type: 'quick' }> }) {
   const [person, setPerson] = useState(edit?.person ?? s.people[0])
   const [repeat, setRepeat] = useState<Freq | ''>('')
   const [shake, setShake] = useState(0)
+  const [sub, setSub] = useState(edit?.sub ?? '')
+  const [newSub, setNewSub] = useState('')
+  const [dupOk, setDupOk] = useState(false)
   const cats = s.categories.filter((c) => c.kind === kind)
   const c = catOf(s, cat)
   const yesterday = iso(addDays(NOW, -1))
@@ -121,7 +129,10 @@ function QuickAdd({ spec }: { spec: Extract<SheetSpec, { type: 'quick' }> }) {
   const save = () => {
     const a = Math.round(parseFloat(amt) * 100) / 100
     if (!(a > 0)) { setShake((x) => x + 1); return }
-    const fields = { type: kind, amount: a, cat, date, note: note.trim(), account, to: kind === 'savings' ? to : undefined, person }
+    if (!repeat && !dupOk && findDuplicate(s, { id: edit?.id, date, amount: a, cat })) { setDupOk(true); return }
+    const subName = newSub.trim() || sub
+    const fields = { type: kind, amount: a, cat, date, note: note.trim(), account, to: kind === 'savings' ? to : undefined, person, sub: subName || undefined }
+    if (newSub.trim()) update((d) => { const x = d.categories.find((y) => y.id === cat); if (x && !(x.subs ?? []).includes(subName)) x.subs = [...(x.subs ?? []), subName] })
     if (repeat) {
       const prev = update((d) => { d.rules.push({ id: uid(), name: note.trim() || c?.name || 'Regular item', freq: repeat, start: date, paidThrough: date <= TODAY ? TODAY : '', ...fields }) })
       return done(`Added. It will now show up ${FREQ[repeat].short}.`, prev)
@@ -164,6 +175,13 @@ function QuickAdd({ spec }: { spec: Extract<SheetSpec, { type: 'quick' }> }) {
           </motion.button>
         ))}
       </div>
+      {kind === 'expense' && c && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="mr-1 text-[13px] font-semibold text-ink2">Type of {c.name.toLowerCase()}:</span>
+          {(c.subs ?? []).map((x) => <button key={x} type="button" aria-pressed={sub === x} onClick={() => { setSub(sub === x ? '' : x); setNewSub('') }} className={`rounded-full border px-3 py-1 text-[13px] font-semibold ${sub === x ? 'border-accent bg-accent-soft text-accent' : 'border-line2 text-ink2'}`}>{x}</button>)}
+          <input className="field !w-32 !rounded-full !py-1 text-[13px]" value={newSub} onChange={(e) => { setNewSub(e.target.value); setSub('') }} placeholder="+ new type" aria-label="New sub-category" maxLength={30} />
+        </div>
+      )}
       <input className="field" value={note} onChange={(e) => setNote(e.target.value)} placeholder={kind === 'expense' ? 'What was it? (optional)' : 'Note (optional)'} aria-label="Note" maxLength={80} />
       <div className="flex flex-wrap gap-2">
         {[[TODAY, 'Today'], [yesterday, 'Yesterday']].map(([v, l]) => (
@@ -186,9 +204,13 @@ function QuickAdd({ spec }: { spec: Extract<SheetSpec, { type: 'quick' }> }) {
           </motion.div>
         )}
       </AnimatePresence>
+      <AnimatePresence>{dupOk && (
+        <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="rounded-2xl bg-warn-soft p-3 text-[14px]" role="alert">
+          You already have <b>{money(+amt)}</b> for {c?.name} around this date. Added it twice? Tap the button again if this is a new one.
+        </motion.p>)}</AnimatePresence>
       <div className="mt-1 flex gap-2">
         {edit && <Button variant="danger" onClick={() => { const prev = update((d) => { d.tx = d.tx.filter((x) => x.id !== edit.id) }); done('Deleted', prev) }}><Trash2 size={16} />Delete</Button>}
-        <Button variant="primary" size="lg" className="flex-1" onClick={save}>{edit ? 'Save changes' : amt && +amt > 0 ? `Add ${money(+amt)}` : 'Add'}</Button>
+        <Button variant="primary" size="lg" className="flex-1" onClick={save}>{dupOk ? 'Yes, add it anyway' : edit ? 'Save changes' : amt && +amt > 0 ? `Add ${money(+amt)}` : 'Add'}</Button>
       </div>
     </div>
   )
@@ -394,12 +416,13 @@ function CategoryForm({ id }: { id?: string }) {
   const [group, setGroup] = useState(c?.group ?? 'extras')
   const [plan, setPlan] = useState(c ? String(c.plan) : '0')
   const [icon, setIcon] = useState(c?.icon ?? 'box')
+  const [subs, setSubs] = useState((c?.subs ?? []).join(', '))
   const [err, setErr] = useState('')
   const used = c && (s.tx.some((t) => t.cat === c.id) || s.rules.some((r) => r.cat === c.id))
   const save = (e: React.FormEvent) => {
     e.preventDefault()
     if (!name.trim()) return setErr('Give it a name.')
-    const v = { name: name.trim(), kind, group: kind === 'savings' ? ('future' as const) : group, plan: parseFloat(plan) || 0, icon }
+    const v = { name: name.trim(), kind, group: kind === 'savings' ? ('future' as const) : group, plan: parseFloat(plan) || 0, icon, subs: [...new Set(subs.split(',').map((x) => x.trim()).filter(Boolean))] }
     const prev = update((d) => {
       if (c) { Object.assign(d.categories.find((y) => y.id === c.id)!, v); return }
       const usedSlots = new Set(d.categories.map((y) => y.slot))
@@ -419,6 +442,7 @@ function CategoryForm({ id }: { id?: string }) {
           <Field label="Monthly plan"><input className="field" type="number" min="0" step="any" value={plan} onChange={(e) => setPlan(e.target.value)} /></Field>
         </div>
       )}
+      <Field label="Sub-categories (optional)" hint="Separate with commas, e.g. Fuel, Parking, Train"><input className="field" value={subs} onChange={(e) => setSubs(e.target.value)} /></Field>
       <div><p className="mb-2 text-[13.5px] font-semibold text-ink2">Icon</p>
         <div className="grid grid-cols-7 gap-1.5 sm:grid-cols-9">{Object.entries(ICONS).map(([k, I]) => (
           <button key={k} type="button" onClick={() => setIcon(k)} aria-label={k} aria-pressed={icon === k} className={`grid aspect-square place-items-center rounded-xl border-2 ${icon === k ? 'border-accent bg-accent-soft text-accent' : 'border-transparent bg-surface2 text-ink2 hover:text-ink'}`}><I size={18} /></button>
@@ -443,6 +467,13 @@ const FAQ: [string, string][] = [
   ['Essentials, extras and future you?', 'Essentials are needs (home, food shopping, energy). Extras are nice-to-haves (eating out, shopping, fun). Future you is money you save or invest. A common guide is 50% / 30% / 20%.'],
   ['What does the money health score mean?', 'A quick score out of 100 based on four good habits: staying within your plan, saving regularly, paying bills on time and having a safety cushion of about three months of essentials.'],
   ['Cheapest way or quick wins for debts?', 'Both pay the minimum on every debt. "Cheapest way" puts extra money on the debt with the highest interest, so you pay least overall. "Quick wins" clears the smallest debt first, which feels great and keeps you motivated.'],
+  ['What is the Calendar for?', 'It shows your month day by day: what you spent, which bills are due, when pay arrives and how much is in your everyday account each day. Tap a day to see or add things.'],
+  ['What is the Paycheck page?', "If you are paid weekly, every two weeks or on another schedule, it shows your money from one payday to the next: pay in, bills due before the next payday, and what's left."],
+  ['Moving money or paying off a card', "Use Accounts → Move money. Moving money between your own accounts isn't spending, so it doesn't count against your plan. 'Pay off card' fills in what you owe."],
+  ['One bill was different this month', 'Tap the bill in Activity, Calendar or Bills. You can change the amount or date for just that one, skip it, or mark it paid. The others stay the same.'],
+  ['What are sub-categories?', 'Smaller groups inside a category, like Fuel and Parking inside Getting around. Pick one when you add spending, then see totals for each in Activity and My plan.'],
+  ['I added something twice', "Tally warns you before you add the same amount for the same thing on nearly the same day, and marks possible doubles in Activity with 'twice?'."],
+  ['Can I open my data in Excel or Google Sheets?', 'Yes. Go to My year or Settings and tap "Download Excel workbook". It has sheets for your year, categories, every transaction, bills, accounts, goals, debts and net worth. Google Sheets opens it via File → Import.'],
   ['Where is my data kept?', 'Only in this browser, on this device. Nothing is sent to a server. Use Settings → Back up to save a copy or move it to another device.'],
 ]
 function Help() {
@@ -465,21 +496,107 @@ function Help() {
 
 function More() {
   const go = useUI((u) => u.go), open = useUI((u) => u.open), close = useUI((u) => u.close)
-  const items: [View | 'help', string, string, typeof Goal][] = [
-    ['bills', 'Bills & pay', 'Things that repeat', CalendarClock], ['goals', 'Goals', 'Save up for things', Goal], ['debts', 'Debts', 'Get debt-free faster', Scale],
-    ['worth', 'What I\'m worth', 'Own minus owe', Landmark], ['settings', 'Settings', 'Names, currency, data', Cog], ['help', 'Help', 'Simple answers', HelpCircle],
+  const items: [View | 'help' | 'tour', string, string, typeof Goal][] = [
+    ['calendar', 'Calendar', 'Your month day by day', CalendarDays], ['bills', 'Bills & pay', 'Things that repeat', CalendarClock],
+    ['paycheck', 'Paycheck', 'Plan pay period by pay period', Banknote], ['year', 'My year', 'Totals, trends, reflection', BarChart3],
+    ['goals', 'Goals', 'Save up for things', Goal], ['debts', 'Debts', 'Get debt-free faster', Scale],
+    ['accounts', 'Accounts', 'Banks, cards and cash', Wallet], ['worth', "What I'm worth", 'Own minus owe', Landmark],
+    ['household', 'Household', 'Who spends what', Users], ['settings', 'Settings', 'Names, currency, data', Cog],
+    ['help', 'Help', 'Simple answers', HelpCircle], ['tour', 'Take the tour', 'A 1-minute walk-through', Compass],
   ]
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
       {items.map(([v, t, d, I], i) => (
-        <motion.button key={v} type="button" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.04 }} whileTap={{ scale: 0.96 }}
-          onClick={() => { if (v === 'help') open({ type: 'help' }); else { close(); go(v) } }}
+        <motion.button key={v} type="button" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }} whileTap={{ scale: 0.96 }}
+          onClick={() => { if (v === 'help') open({ type: 'help' }); else if (v === 'tour') { close(); go('home'); setTimeout(() => useUI.getState().setTour(true), 400) } else { close(); go(v) } }}
           className="flex flex-col items-start gap-2 rounded-2xl bg-surface2 p-4 text-left">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent"><I size={20} /></span>
           <span className="font-bold">{t}</span><span className="-mt-1.5 text-[13px] text-ink2">{d}</span>
         </motion.button>
       ))}
     </div>
+  )
+}
+
+/* ---------------- a single payment of a regular item ---------------- */
+function OccForm({ ruleId, date }: { ruleId: string; date: string }) {
+  const s = useData()
+  const open = useUI((u) => u.open)
+  const r = s.rules.find((x) => x.id === ruleId)
+  const key = ruleKey(ruleId, date)
+  const ov = s.overrides[key] ?? {}
+  const [amount, setAmount] = useState(String(ov.amount ?? r?.amount ?? ''))
+  const [when, setWhen] = useState(ov.date ?? date)
+  if (!r) return <p>This item no longer exists.</p>
+  const paid = isPaid(s, r, date)
+  const save = () => {
+    const a = parseFloat(amount)
+    const prev = update((d) => {
+      const o: { amount?: number; date?: string } = {}
+      if (a > 0 && a !== r.amount) o.amount = a
+      if (when && when !== date) o.date = when
+      if (Object.keys(o).length) d.overrides[key] = o; else delete d.overrides[key]
+    })
+    done('Saved for this payment only', prev)
+  }
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-3 rounded-2xl bg-surface2 p-3"><CatIcon cat={catOf(s, r.cat)} /><div className="flex-1"><p className="font-bold">{r.name}</p><p className="text-[13px] text-ink2">Usually {money(r.amount)} · {FREQ[r.freq].label.toLowerCase()}</p></div></div>
+      <p className="text-[14.5px] text-ink2">Was this one different? Change just this payment. The others stay the same.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Amount this time"><input className="field" type="number" min="0" step="any" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
+        <Field label="Date this time"><input className="field" type="date" value={when} onChange={(e) => setWhen(e.target.value)} /></Field>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => { const prev = update((d) => { d.paid[key] = !paid }); done(paid ? 'Marked as not paid' : 'Marked as paid', prev) }}>{paid ? 'Mark as not paid' : r.type === 'income' ? 'Mark as received' : 'Mark as paid'}</Button>
+        <Button onClick={() => { const prev = update((d) => { d.skip[key] = true }); done('Skipped this one', prev) }}>Skip this one</Button>
+        {s.overrides[key] && <Button variant="ghost" onClick={() => { const prev = update((d) => { delete d.overrides[key] }); done('Back to the usual amount and date', prev) }}>Undo change</Button>}
+      </div>
+      <Foot>
+        <Button variant="ghost" className="mr-auto" onClick={() => open({ type: 'bill', id: r.id })}><Repeat size={16} />Edit every payment</Button>
+        <Button variant="primary" onClick={save}>Save this one</Button>
+      </Foot>
+    </div>
+  )
+}
+
+/* ---------------- transfers ---------------- */
+function TransferForm({ id, from, to }: { id?: string; from?: string; to?: string }) {
+  const s = useData()
+  const t = s.transfers.find((x) => x.id === id)
+  const bal = balances(s)
+  const [f, setF] = useState(t?.from ?? from ?? s.accounts[0]?.id)
+  const [tt, setT] = useState(t?.to ?? to ?? s.accounts.find((a) => a.id !== (from ?? s.accounts[0]?.id))?.id ?? '')
+  const owed = -(bal[tt] || 0)
+  const [amount, setAmount] = useState(t ? String(t.amount) : to && owed > 0 ? String(Math.round(owed * 100) / 100) : '')
+  const [date, setDate] = useState(t?.date ?? TODAY)
+  const [note, setNote] = useState(t?.note ?? (s.accounts.find((a) => a.id === tt)?.type === 'card' ? 'Credit card payment' : ''))
+  const [err, setErr] = useState('')
+  const save = (e: React.FormEvent) => {
+    e.preventDefault()
+    const a = parseFloat(amount)
+    if (!(a > 0)) return setErr('How much did you move?')
+    if (f === tt) return setErr('Choose two different accounts.')
+    const v = { from: f, to: tt, amount: a, date, note: note.trim() }
+    const prev = update((d) => { if (t) Object.assign(d.transfers.find((x) => x.id === t.id)!, v); else d.transfers.push({ id: uid(), ...v }) })
+    done(t ? 'Saved' : `Moved ${money(a)}`, prev)
+  }
+  return (
+    <form onSubmit={save} className="flex flex-col gap-4">
+      <p className="text-[14.5px] text-ink2">Moving money between your own accounts isn't spending, so it won't touch your plan. Use this for paying off a card or topping up savings by hand.</p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="From"><select className="field" value={f} onChange={(e) => setF(e.target.value)}>{s.accounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({money(bal[a.id] || 0)})</option>)}</select></Field>
+        <Field label="To"><select className="field" value={tt} onChange={(e) => setT(e.target.value)}>{s.accounts.map((a) => <option key={a.id} value={a.id}>{a.name} ({money(bal[a.id] || 0)})</option>)}</select></Field>
+        <Field label="Amount" hint={owed > 0 ? <button type="button" className="font-semibold text-accent" onClick={() => setAmount(String(Math.round(owed * 100) / 100))}>Pay off all {money(owed)}</button> : undefined}><input className="field" type="number" min="0" step="any" value={amount} onChange={(e) => setAmount(e.target.value)} /></Field>
+        <Field label="Date"><input className="field" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
+      </div>
+      <Field label="Note (optional)"><input className="field" value={note} onChange={(e) => setNote(e.target.value)} /></Field>
+      <Err msg={err} />
+      <Foot>
+        {t && <Button variant="danger" className="mr-auto" onClick={() => { const prev = update((d) => { d.transfers = d.transfers.filter((x) => x.id !== t.id) }); done('Transfer deleted', prev) }}><Trash2 size={16} />Delete</Button>}
+        <Button type="submit" variant="primary">{t ? 'Save' : 'Move money'}</Button>
+      </Foot>
+    </form>
   )
 }
 
@@ -509,19 +626,16 @@ function CsvImport() {
 }
 function Backup() {
   const s = useData()
-  const [tab, setTab] = useState<'csv' | 'json' | 'restore'>('csv')
+  const [tab, setTab] = useState<'excel' | 'csv' | 'json' | 'restore'>('excel')
   const [paste, setPaste] = useState('')
   const [err, setErr] = useState('')
   const text = tab === 'csv' ? toCsv(s) : JSON.stringify(s)
   const ref = useRef<HTMLTextAreaElement>(null)
   const copy = () => navigator.clipboard?.writeText(text).then(() => toast('Copied'), () => { ref.current?.select(); toast('Press Ctrl+C (or ⌘C) to copy') }) ?? (ref.current?.select(), toast('Press Ctrl+C (or ⌘C) to copy'))
-  const download = () => {
-    try {
-      const a = document.createElement('a')
-      a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }))
-      a.download = tab === 'csv' ? 'tally-activity.csv' : 'tally-backup.json'
-      document.body.append(a); a.click(); a.remove()
-    } catch { toast('Downloads are blocked here. Use Copy instead.') }
+  const download = async () => {
+    const r = tab === 'excel' ? await saveFile(`tally-${THIS_MONTH.slice(0, 4)}.xlsx`, workbook(s, +THIS_MONTH.slice(0, 4)))
+      : await saveFile(tab === 'csv' ? 'tally-activity.csv' : 'tally-backup.json', text)
+    toast(r === 'saved' ? 'File ready' : r === 'declined' ? 'Download cancelled' : 'Downloads are blocked here. Use Copy instead.')
   }
   const restore = () => {
     try {
@@ -534,8 +648,13 @@ function Backup() {
   }
   return (
     <div className="flex flex-col gap-4">
-      <Segmented label="What" value={tab} onChange={setTab} options={[['csv', 'Spreadsheet (CSV)'], ['json', 'Full backup'], ['restore', 'Restore a backup']]} className="self-start" />
-      {tab === 'restore' ? (
+      <Segmented label="What" value={tab} onChange={setTab} options={[['excel', 'Excel workbook'], ['csv', 'CSV'], ['json', 'Full backup'], ['restore', 'Restore']]} className="self-start" />
+      {tab === 'excel' ? (
+        <>
+          <div className="flex items-start gap-3 rounded-2xl bg-surface2 p-4"><FileSpreadsheet className="shrink-0 text-good" /><p className="text-[14.5px] text-ink2">A workbook for Excel or Google Sheets with a sheet each for your year summary, categories by month, every transaction, regular bills, accounts, goals, debts and net worth.</p></div>
+          <Foot><Button variant="primary" onClick={download}><Download size={16} />Download Excel file</Button></Foot>
+        </>
+      ) : tab === 'restore' ? (
         <>
           <p className="text-[14.5px] text-ink2">Paste a full backup here. It replaces what's in Tally now.</p>
           <textarea className="field min-h-[160px] font-mono text-[12px]" value={paste} onChange={(e) => setPaste(e.target.value)} aria-label="Backup text" />
