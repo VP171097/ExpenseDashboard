@@ -1,6 +1,6 @@
 import { addDays, addMonths, addMonthsDate, iso, NOW, pad, parse, THIS_MONTH, TODAY } from './dates'
 import { uid } from './calc'
-import type { Category, Freq, Rule, Settings, State, Transfer, Tx } from './types'
+import type { Category, Freq, Rule, Settings, State, Transfer, Trip, Tx } from './types'
 
 export function baseCategories(): Category[] {
   return [
@@ -37,7 +37,7 @@ export function emptyState(currency = 'EUR'): State {
       { id: 'chk', name: 'Everyday account', type: 'everyday', start: 0 },
       { id: 'sav', name: 'Savings account', type: 'savings', start: 0 },
     ],
-    categories: baseCategories(), tx: [], rules: [], paid: {}, skip: {}, goals: [], debts: [], holdings: [], history: {}, transfers: [], overrides: {}, reflections: {},
+    categories: baseCategories(), tx: [], rules: [], paid: {}, skip: {}, goals: [], debts: [], holdings: [], history: {}, transfers: [], trips: [], overrides: {}, reflections: {},
     settings: { ...baseSettings(), currency },
   }
 }
@@ -108,6 +108,26 @@ export function sampleState(): State {
     if (r() < 0.018) add(ds, 'income', 'side', R(180, 640))
     if (r() < 0.005) add(ds, 'income', 'otherin', R(25, 160))
   }
+  // a weekend away a few weeks ago, and a summer trip with the flights and hotel already booked
+  const day = (n: number) => iso(addDays(NOW, n))
+  const trips: Trip[] = [
+    { id: 'lisbon', name: 'Weekend in Lisbon', icon: '🏙️', start: day(-40), end: day(-37), budget: 700 },
+    { id: 'porto', name: 'Summer in Porto', icon: '🏖️', start: day(24), end: day(31), budget: 1800, note: 'Saving for it in Goals too' },
+  ]
+  const trip = (id: string, date: string, cat: string, amount: number, note: string, sub?: string, person = 'Alex') =>
+    tx.push({ id: uid(), date, type: 'expense', cat, amount, account: 'chk', person, note, trip: id, ...(sub ? { sub } : {}) })
+  trip('lisbon', day(-55), 'travel', 186.4, 'Flights to Lisbon')
+  trip('lisbon', day(-52), 'travel', 238, 'Hotel, 3 nights')
+  trip('lisbon', day(-40), 'transport', 18.6, 'Airport metro', 'Public transport', 'Sam')
+  trip('lisbon', day(-40), 'dining', 42.5, 'Dinner in Alfama', 'Restaurants')
+  trip('lisbon', day(-39), 'fun', 24, 'Tram 28 and castle tickets', undefined, 'Sam')
+  trip('lisbon', day(-39), 'dining', 9.8, 'Pastéis de nata', 'Coffee')
+  trip('lisbon', day(-39), 'dining', 58.2, 'Seafood lunch', 'Restaurants', 'Sam')
+  trip('lisbon', day(-38), 'shopping', 36, 'Tiles for the kitchen', 'Home')
+  trip('lisbon', day(-38), 'dining', 47.9, 'Dinner in Bairro Alto', 'Restaurants')
+  trip('lisbon', day(-37), 'transport', 22, 'Taxi to the airport', undefined, 'Sam')
+  trip('porto', day(-12), 'travel', 312, 'Flights to Porto')
+  trip('porto', day(-9), 'travel', 540, 'Apartment, 7 nights', undefined, 'Sam')
   // pay the credit card off from the everyday account each month
   for (let i = 12; i >= 1; i--) {
     const k = addMonths(THIS_MONTH, -i)
@@ -142,7 +162,7 @@ export function sampleState(): State {
       { id: uid(), name: 'Car', kind: 'own', group: 'Things', value: 11500 },
       { id: uid(), name: 'Loan from family', kind: 'owe', group: 'Personal', value: 600 },
     ],
-    history: {}, transfers, overrides: {}, reflections: {},
+    history: {}, transfers, trips, overrides: {}, reflections: {},
     settings: { ...baseSettings(), name: 'Alex', payAnchor: `${s0}-25` },
   }
   return st

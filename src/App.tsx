@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import {
-  Banknote, BarChart3, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check,
+  Banknote, BarChart3, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Plane, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, type ComponentType } from 'react'
 import Sheets from './components/Sheets'
@@ -25,6 +25,7 @@ const Calendar = lazy(() => import('./screens/Calendar'))
 const Household = lazy(() => import('./screens/Household'))
 const Paycheck = lazy(() => import('./screens/Paycheck'))
 const Year = lazy(() => import('./screens/Year'))
+const Trips = lazy(() => import('./screens/Trips'))
 // warm the other screens once the dashboard is showing
 const preload = () => ['Activity', 'Bills', 'Plan', 'Calendar', 'Goals'].forEach((n) => import(`./screens/${n}.tsx`).catch(() => {}))
 
@@ -36,6 +37,7 @@ const NAV: NavItem[] = [
   { id: 'bills', label: 'Bills & pay', icon: CalendarClock, sub: 'Things that repeat every week, month or year. Set them once.', month: true, group: 'Every day' },
   { id: 'plan', label: 'My plan', icon: Wallet, sub: 'Decide how much to spend on each thing, then see how you are doing.', month: true, group: 'Planning' },
   { id: 'paycheck', label: 'Paycheck', icon: Banknote, sub: 'Your money pay period by pay period, however often you are paid.', group: 'Planning' },
+  { id: 'trips', label: 'Trips', icon: Plane, sub: 'Holidays and trips: a budget, every expense, and who paid.', group: 'Planning' },
   { id: 'year', label: 'My year', icon: BarChart3, sub: 'The whole year: totals, trends, every category and a look back.', group: 'Planning' },
   { id: 'goals', label: 'Goals', icon: Goal, sub: 'Save up for the things that matter, and try a no-spend challenge.', month: true, group: 'Building wealth' },
   { id: 'debts', label: 'Debts', icon: Scale, sub: 'See when you will be free of loans and cards, and how to get there faster.', group: 'Building wealth' },
@@ -44,7 +46,7 @@ const NAV: NavItem[] = [
   { id: 'household', label: 'Household', icon: Users, sub: 'Who brings money in and who spends on what.', month: true, group: 'Together' },
   { id: 'settings', label: 'Settings', icon: Cog, sub: 'Names, currency, accounts and your data.', group: 'Together' },
 ]
-const SCREENS: Record<View, ComponentType> = { home: Home, activity: Activity, calendar: Calendar, plan: Plan, paycheck: Paycheck, year: Year, bills: Bills, goals: Goals, debts: Debts, accounts: Accounts, worth: Worth, household: Household, settings: Settings }
+const SCREENS: Record<View, ComponentType> = { home: Home, activity: Activity, calendar: Calendar, plan: Plan, paycheck: Paycheck, year: Year, bills: Bills, goals: Goals, debts: Debts, accounts: Accounts, worth: Worth, household: Household, trips: Trips, settings: Settings }
 
 export default function App() {
   const data = useStore((s) => s.data)

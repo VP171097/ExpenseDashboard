@@ -1,5 +1,5 @@
 import { addDays, addMonths, addMonthsDate, daysIn, iso, monthEnd, monthsBetween, NOW, parse, THIS_MONTH, TODAY } from './dates'
-import type { Category, Debt, Freq, Item, Rule, State, Transfer, Tx } from './types'
+import type { Category, Debt, Freq, Item, Rule, State, Transfer, Trip, Tx } from './types'
 import { money0 as fmtM } from './money'
 
 /* Money is stored with at most two decimals and always added up in whole cents, so totals never drift. */
@@ -465,4 +465,62 @@ export function goalStatus(g: { target: number; saved: number; due: string; hist
   const state: GoalState = remaining <= 0 ? 'done' : g.due < TODAY ? 'late' : !g.history?.length ? 'new' : pace >= need * 0.9 ? 'on-track' : 'behind'
   const eta = pace > 0 && remaining > 0 ? addMonthsDate(NOW, Math.ceil(remaining / pace)) : null
   return { state, remaining, need, pace, eta, monthsLeft }
+}
+
+/* ---------- trips ---------- */
+/** Entries for each trip, built in one pass and cached. */
+function tripIndex(s: State) {
+  return memo(s, 'tripIndex', () => {
+    const m = new Map<string, Tx[]>()
+    for (const t of s.tx) { if (!t.trip) continue; let b = m.get(t.trip); if (!b) m.set(t.trip, (b = [])); b.push(t) }
+    return m
+  })
+}
+export const tripOf = (s: State, id?: string) => (id ? (s.trips ?? []).find((t) => t.id === id) : undefined)
+export const tripDays = (t: Pick<Trip, 'start' | 'end'>) => Math.max(1, Math.round((parse(t.end).getTime() - parse(t.start).getTime()) / 864e5) + 1)
+export type TripPhase = 'upcoming' | 'on' | 'done'
+export const tripPhase = (t: Trip): TripPhase => (TODAY < t.start ? 'upcoming' : TODAY > t.end ? 'done' : 'on')
+/** The trip happening today, or else the next one starting within two weeks. */
+export function currentTrip(s: State) {
+  const soon = iso(addDays(NOW, 14))
+  return (s.trips ?? []).find((t) => tripPhase(t) === 'on') ?? [...(s.trips ?? [])].filter((t) => t.start > TODAY && t.start <= soon).sort((a, b) => a.start.localeCompare(b.start))[0]
+}
+/**
+ * Everything about one trip's money. Spending is ordinary entries tagged with the trip, so the
+ * same money also counts in its month, category and plan. Money in tagged with a trip (a refund,
+ * or a friend paying you back) reduces the trip's cost.
+ */
+export function tripStats(s: State, trip: Trip) {
+  return memo(s, 'trip|' + trip.id + '|' + trip.start + '|' + trip.end + '|' + trip.budget, () => {
+    const list = (tripIndex(s).get(trip.id) ?? []).filter((t) => t.type !== 'savings')
+    let spent = 0, back = 0, before = 0
+    const byCat: Record<string, number> = {}, byPerson: Record<string, number> = {}, byDay: Record<string, number> = {}
+    for (const t of list) {
+      const a = cents(t.amount)
+      if (t.type === 'income') { back += a; continue }
+      spent += a
+      byCat[t.cat] = (byCat[t.cat] || 0) + a
+      if (t.person) byPerson[t.person] = (byPerson[t.person] || 0) + a
+      if (t.date < trip.start) before += a
+      else byDay[t.date] = (byDay[t.date] || 0) + a
+    }
+    const days = tripDays(trip), phase = tripPhase(trip)
+    const dayNo = phase === 'on' ? tripDays({ start: trip.start, end: TODAY }) : phase === 'done' ? days : 0
+    const daysLeft = phase === 'upcoming' ? days : phase === 'on' ? days - dayNo + 1 : 0
+    const net = (spent - back) / 100
+    const during = (spent - before) / 100
+    const left = (cents(trip.budget) - (spent - back)) / 100
+    const sorted = (o: Record<string, number>) => Object.entries(o).map(([k, v]) => [k, v / 100] as [string, number]).sort((a, b) => b[1] - a[1])
+    // every day of the trip, including the ones with nothing spent
+    const daily: { date: string; amount: number }[] = []
+    for (let d = parse(trip.start), i = 0; i < days && i < 366; i++, d = addDays(d, 1)) { const k = iso(d); daily.push({ date: k, amount: (byDay[k] || 0) / 100 }) }
+    const extra = Object.keys(byDay).filter((k) => k > trip.end).reduce((a, k) => a + byDay[k], 0) / 100
+    return {
+      entries: list, count: list.length, spent: spent / 100, back: back / 100, net, before: before / 100, after: extra, during,
+      byCat: sorted(byCat), byPerson: sorted(byPerson), daily, days, dayNo, daysLeft, phase,
+      perDay: dayNo ? (during - extra) / dayNo : 0,
+      left, perDayLeft: trip.budget > 0 && daysLeft > 0 ? Math.max(0, left) / daysLeft : 0,
+      used: trip.budget > 0 ? net / trip.budget : 0,
+    }
+  })
 }

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { ItemRow } from '../components/bits'
 import { Pager, usePaged } from '../components/Pager'
 import { Bar, Button, Card, CardHead, Empty } from '../components/ui'
-import { catOf, cents, duplicateIds, earliestMonth, itemsIn, searchText } from '../lib/calc'
+import { catOf, cents, duplicateIds, earliestMonth, itemsIn, searchText, tripOf } from '../lib/calc'
 import { friendlyDay, monthEnd, monthName, THIS_MONTH, TODAY } from '../lib/dates'
 import { money } from '../lib/money'
 import { EMPTY_FILTER, useData, useUI, type Filter } from '../lib/store'
@@ -28,7 +28,7 @@ const SORTS: Record<Filter['sort'], (a: Item, b: Item) => number> = {
 export default function Activity() {
   const s = useData()
   const { month: k, filter: f, setFilter, open } = useUI()
-  const [more, setMore] = useState(!!(f.sub || f.person || f.status || f.group || f.account || f.scope !== 'month' || f.sort !== 'newest'))
+  const [more, setMore] = useState(!!(f.trip || f.sub || f.person || f.status || f.group || f.account || f.scope !== 'month' || f.sort !== 'newest'))
   // search box updates instantly; the list follows a moment later so typing never stutters
   const [q, setQ] = useState(f.q)
   useEffect(() => { const t = setTimeout(() => { if (q !== f.q) setFilter({ q }) }, 120); return () => clearTimeout(t) }, [q, f.q, setFilter])
@@ -41,8 +41,11 @@ export default function Activity() {
   // 1. dataset and dates  2. search  3. filters  4. sort
   const items = useMemo(() => {
     const needle = f.q.trim().toLowerCase()
+    // trips whose name matches the search, so "lisbon" finds every Lisbon trip entry
+    const tripHit = new Set(needle ? (s.trips ?? []).filter((x) => x.name.toLowerCase().includes(needle)).map((x) => x.id) : [])
     const list = itemsIn(s, from, to).filter((t) => {
-      if (needle && !searchText(s, t).includes(needle)) return false
+      if (needle && !searchText(s, t).includes(needle) && !(t.trip && tripHit.has(t.trip))) return false
+      if (f.trip && (f.trip === 'any' ? !t.trip : f.trip === 'none' ? !!t.trip : t.trip !== f.trip)) return false
       if (f.type === 'bills' && !t.virtual) return false
       if (f.type && f.type !== 'bills' && t.type !== f.type) return false
       if (f.cat && t.cat !== f.cat) return false
@@ -90,7 +93,7 @@ export default function Activity() {
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative min-w-[220px] flex-[2_1_260px]">
             <Search size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
-            <input className="field pl-11 text-[15px]" type="search" placeholder="Search description, category, amount or person" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search activity" />
+            <input className="field pl-11 text-[15px]" type="search" placeholder="Search description, category, trip, amount or person" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search activity" />
           </div>
           <select className={sel} value={f.scope} onChange={(e) => set({ scope: e.target.value as Filter['scope'] })} aria-label="Dates">
             <option value="month">{monthName(k)}</option><option value="year">All of {k.slice(0, 4)}</option><option value="all">All time</option><option value="range">Choose dates…</option>
@@ -119,6 +122,10 @@ export default function Activity() {
           <select className={sel} value={f.cat} onChange={(e) => set({ cat: e.target.value, sub: '' })} aria-label="Category">
             <option value="">All categories</option>{s.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
+          {(s.trips ?? []).length > 0 && <select className={sel} value={f.trip} onChange={(e) => set({ trip: e.target.value })} aria-label="Trip">
+            <option value="">Trips and everyday</option><option value="any">Any trip</option><option value="none">Not on a trip</option>
+            {[...s.trips].sort((a, b) => b.start.localeCompare(a.start)).map((x) => <option key={x.id} value={x.id}>{x.icon} {x.name}</option>)}
+          </select>}
           {cat?.subs?.length ? <select className={sel} value={f.sub} onChange={(e) => set({ sub: e.target.value })} aria-label="Sub-category"><option value="">All of {cat.name}</option>{cat.subs.map((x) => <option key={x}>{x}</option>)}</select> : null}
         </div>
         <AnimatePresence initial={false}>
@@ -135,7 +142,7 @@ export default function Activity() {
           )}
         </AnimatePresence>
         <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 text-[14px] text-ink2" aria-live="polite">
-          <span><b className="tnum text-ink">{nf.format(items.length)}</b> matching · {label}</span>
+          <span><b className="tnum text-ink">{nf.format(items.length)}</b> matching · {label}{tripOf(s, f.trip) ? <> · <b className="text-ink">{tripOf(s, f.trip)!.icon} {tripOf(s, f.trip)!.name}</b></> : null}</span>
           <span>In <b className="tnum text-good">{money(totals.in)}</b></span>
           <span>Out <b className="tnum text-ink">{money(totals.out)}</b></span>
           <span>Put aside <b className="tnum text-accent">{money(totals.aside)}</b></span>

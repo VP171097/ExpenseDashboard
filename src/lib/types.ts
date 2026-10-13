@@ -5,7 +5,9 @@ export type Freq = 'weekly' | 'biweekly' | 'fourweekly' | 'monthly' | 'quarterly
 
 export interface Category { id: string; name: string; kind: Kind; group: Group; plan: number; slot: number | null; icon: string; subs?: string[] }
 export interface Account { id: string; name: string; type: 'everyday' | 'savings' | 'card' | 'cash' | 'investment'; start: number }
-export interface Tx { id: string; date: string; type: Kind; cat: string; sub?: string; amount: number; account: string; to?: string; person?: string; note: string }
+export interface Tx { id: string; date: string; type: Kind; cat: string; sub?: string; amount: number; account: string; to?: string; person?: string; note: string; /** the trip or holiday this belongs to */ trip?: string }
+/** A trip or holiday. Its spending is ordinary entries tagged with the trip, so it still counts in every month and plan. */
+export interface Trip { id: string; name: string; icon: string; start: string; end: string; budget: number; note?: string }
 /** Money moved between your own accounts, e.g. paying off the credit card. Not spending. */
 export interface Transfer { id: string; date: string; from: string; to: string; amount: number; note: string }
 export interface Rule {
@@ -53,6 +55,7 @@ export interface State {
   holdings: Holding[]
   history: Record<string, { own: number; owe: number }>
   transfers: Transfer[]
+  trips: Trip[]
   /** One-off changes to a single occurrence of a regular item, keyed by rule id + original date. */
   overrides: Record<string, { amount?: number; date?: string }>
   /** Year-end notes, keyed by year. */

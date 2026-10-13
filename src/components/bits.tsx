@@ -1,7 +1,7 @@
 import { motion } from 'framer-motion'
 import { AlertTriangle, Check, Repeat } from 'lucide-react'
 import { useId } from 'react'
-import { catOf, isPaid, ruleKey } from '../lib/calc'
+import { catOf, isPaid, ruleKey, tripOf } from '../lib/calc'
 import { fmtDate } from '../lib/dates'
 import { money } from '../lib/money'
 import { toast, update, useData, useUI } from '../lib/store'
@@ -56,6 +56,7 @@ export function ItemRow({ item, showDate = false, dup = false }: { item: Item; s
   const s = useData()
   const open = useUI((u) => u.open)
   const c = catOf(s, item.cat)
+  const trip = tripOf(s, item.trip)
   const openIt = () => {
     if (item.virtual) open({ type: 'occ', ruleId: item.ruleId!, date: item.occ ?? item.date })
     else { const t = s.tx.find((x) => x.id === item.id); if (t) open({ type: 'quick', edit: t }) }
@@ -70,6 +71,7 @@ export function ItemRow({ item, showDate = false, dup = false }: { item: Item; s
           <span className="flex flex-wrap items-center gap-x-1.5 text-[12.5px] text-muted">
             {showDate && <span>{fmtDate(item.date)}</span>}
             <span>{c?.name}{item.sub ? ` · ${item.sub}` : ''}</span>
+            {trip && <span title={`Part of the trip ${trip.name}`} className="inline-flex max-w-[170px] items-center gap-1 rounded-full bg-accent-soft px-2 py-[1px] text-[11.5px] font-semibold text-accent"><span aria-hidden>{trip.icon}</span><span className="truncate">{trip.name}</span></span>}
             {dup && <span className="inline-flex items-center gap-0.5 font-semibold text-warn"><AlertTriangle size={11} /> twice?</span>}
             {item.changed && <span className="font-semibold text-accent">changed</span>}
             {item.virtual && <span className="inline-flex items-center gap-0.5" title="Repeats regularly"><Repeat size={11} />{showDate ? '' : ' regular'}</span>}

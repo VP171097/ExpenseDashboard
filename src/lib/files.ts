@@ -1,4 +1,4 @@
-import { accountName, balances, catName, itemsIn, perMonth, planFor, simulate, spendCats, sum, FREQ, yearStats } from './calc'
+import { accountName, balances, catName, itemsIn, perMonth, planFor, simulate, spendCats, sum, FREQ, tripOf, tripStats, yearStats } from './calc'
 import { monthName, TODAY } from './dates'
 import type { State } from './types'
 
@@ -60,9 +60,14 @@ export async function workbook(s: State, year: number) {
 
   const items = itemsIn(s, `${year}-01-01`, `${year}-12-31`).filter((t) => t.paid).sort((a, b) => a.date.localeCompare(b.date))
   add('Transactions', [
-    ['Date', 'Description', 'Type', 'Category', 'Sub-category', 'Account', 'Person', 'Amount'],
-    ...items.map((t) => [t.date, t.note, t.type === 'income' ? 'Money in' : t.type === 'savings' ? 'Put aside' : 'Money out', catName(s, t.cat), t.sub ?? '', accountName(s, t.account), t.person ?? '', t.type === 'income' ? t.amount : -t.amount]),
-  ], [11, 28, 11, 18, 16, 18, 10, 11])
+    ['Date', 'Description', 'Type', 'Category', 'Sub-category', 'Account', 'Person', 'Amount', 'Trip'],
+    ...items.map((t) => [t.date, t.note, t.type === 'income' ? 'Money in' : t.type === 'savings' ? 'Put aside' : 'Money out', catName(s, t.cat), t.sub ?? '', accountName(s, t.account), t.person ?? '', t.type === 'income' ? t.amount : -t.amount, tripOf(s, t.trip)?.name ?? '']),
+  ], [11, 28, 11, 18, 16, 18, 10, 11, 18])
+
+  if (s.trips?.length) add('Trips', [
+    ['Trip', 'First day', 'Last day', 'Days', 'Budget', 'Spent', 'Money back', 'Left in budget', 'Entries'],
+    ...[...s.trips].sort((a, b) => a.start.localeCompare(b.start)).map((t) => { const st = tripStats(s, t); return [t.name, t.start, t.end, st.days, t.budget || '', r2(st.spent), r2(st.back), t.budget ? r2(st.left) : '', st.count] }),
+  ], [24, 11, 11, 6, 10, 10, 11, 13, 8])
 
   add('Regular items', [
     ['Name', 'Type', 'Category', 'How often', 'Amount', 'Per month', 'Starts', 'Ends'],

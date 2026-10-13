@@ -5,7 +5,7 @@ import { Donut, MonthBars, Spark, TimeChart } from '../components/charts'
 import { AllocationRing3D } from '../components/three'
 import { ItemRow, Jar, statusOf } from '../components/bits'
 import { Bar, Button, Card, CardHead, CatIcon, Chip, Empty, Explain, Num, Ring, Tilt } from '../components/ui'
-import { health, monthItems, yearStats, monthPicture, monthStats, planFor, spendCats, sum, tips, upcoming } from '../lib/calc'
+import { currentTrip, health, monthItems, tripStats, yearStats, monthPicture, monthStats, planFor, spendCats, sum, tips, upcoming } from '../lib/calc'
 import { addMonths, daysIn, fmtDate, monthName, pad, TODAY } from '../lib/dates'
 import { money0, pct } from '../lib/money'
 import { useData, useUI, type View } from '../lib/store'
@@ -131,6 +131,9 @@ export default function Home() {
         </div>
       </motion.section>
       </Tilt>
+
+      {/* ---------- a trip happening now or soon ---------- */}
+      <TripBanner />
 
       {/* ---------- money health ---------- */}
       <Card i={1} tour="health" className="col-span-12 md:col-span-6 xl:col-span-4">
@@ -305,6 +308,27 @@ export default function Home() {
   )
 }
 
+function TripBanner() {
+  const s = useData()
+  const { go, open } = useUI()
+  const t = currentTrip(s)
+  if (!t) return null
+  const st = tripStats(s, t)
+  return (
+    <motion.section initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="card col-span-12 flex flex-wrap items-center gap-3 p-4" aria-label="Current trip">
+      <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-accent-soft text-[26px]" aria-hidden>{t.icon}</span>
+      <div className="min-w-[180px] flex-1">
+        <p className="font-bold">{st.phase === 'on' ? `You're on ${t.name}` : `${t.name} is coming up`} <span className="font-normal text-ink2">· {st.phase === 'on' ? `day ${st.dayNo} of ${st.days}` : `starts ${fmtDate(t.start, { weekday: 'short', day: 'numeric', month: 'short' })}`}</span></p>
+        <p className="text-[14px] text-ink2">Spent <b className="tnum text-ink">{money0(st.net)}</b>{t.budget > 0 ? <> of {money0(t.budget)}{st.left > 0 && st.perDayLeft > 0 ? <> · about <b className="tnum text-ink">{money0(st.perDayLeft)}</b> a day left</> : st.left <= 0 ? <> · <b className="text-bad">over budget</b></> : null}</> : null}</p>
+      </div>
+      {t.budget > 0 && <div className="hidden w-40 sm:block"><Bar value={Math.min(1, st.used)} height={8} color={st.used > 1 ? 'var(--bad)' : st.used > 0.85 ? 'var(--warn)' : 'var(--good)'} label={`${t.name} budget used`} /></div>}
+      <div className="flex gap-2">
+        <Button size="sm" variant="primary" onClick={() => open({ type: 'quick', kind: 'expense', trip: t.id })}>Add trip expense</Button>
+        <Button size="sm" variant="plain" onClick={() => go('trips')}>Open <ArrowRight size={14} /></Button>
+      </div>
+    </motion.section>
+  )
+}
 function CheckRow({ c }: { c: { ok: boolean | 'half'; title: string; detail: string } }) {
   const [open, setOpen] = useState(false)
   const tone = c.ok === true ? 'good' : c.ok === 'half' ? 'warn' : 'bad'

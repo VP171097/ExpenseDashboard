@@ -9,6 +9,7 @@ import type { Kind, State, Tx } from './types'
 export function upgrade(d: State | null): State | null {
   if (!d) return d
   d.transfers ??= []
+  d.trips ??= []
   d.overrides ??= {}
   d.reflections ??= {}
   d.settings.payAnchor ??= THIS_MONTH + '-01'
@@ -78,11 +79,12 @@ export const useData = () => useStore((s) => s.data) as State
 export const update = (fn: (d: State) => void) => useStore.getState().update(fn)
 export const replaceData = (d: State | null) => useStore.getState().replace(d)
 
-export type View = 'home' | 'activity' | 'calendar' | 'plan' | 'paycheck' | 'year' | 'bills' | 'goals' | 'debts' | 'accounts' | 'worth' | 'household' | 'settings'
+export type View = 'home' | 'activity' | 'calendar' | 'plan' | 'paycheck' | 'year' | 'bills' | 'goals' | 'debts' | 'accounts' | 'worth' | 'household' | 'trips' | 'settings'
 export type SheetSpec =
-  | { type: 'quick'; edit?: Tx; date?: string; kind?: Kind }
+  | { type: 'quick'; edit?: Tx; date?: string; kind?: Kind; trip?: string }
   | { type: 'bill'; id?: string }
   | { type: 'goal'; id?: string }
+  | { type: 'trip'; id?: string }
   | { type: 'debt'; id?: string }
   | { type: 'holding'; id?: string; kind?: 'own' | 'owe' }
   | { type: 'account'; id?: string }
@@ -97,10 +99,10 @@ export type SheetSpec =
 
 export interface Filter {
   q: string; type: '' | Kind | 'bills'; cat: string; sub: string; person: string; status: '' | 'paid' | 'upcoming'
-  group: '' | 'essentials' | 'extras' | 'future'; account: string; scope: 'month' | 'year' | 'all' | 'range'; from: string; to: string
+  group: '' | 'essentials' | 'extras' | 'future'; account: string; trip: string; scope: 'month' | 'year' | 'all' | 'range'; from: string; to: string
   sort: 'newest' | 'oldest' | 'biggest' | 'smallest'
 }
-export const EMPTY_FILTER: Filter = { q: '', type: '', cat: '', sub: '', person: '', status: '', group: '', account: '', scope: 'month', from: '', to: '', sort: 'newest' }
+export const EMPTY_FILTER: Filter = { q: '', type: '', cat: '', sub: '', person: '', status: '', group: '', account: '', trip: '', scope: 'month', from: '', to: '', sort: 'newest' }
 interface UIStore {
   view: View
   month: string

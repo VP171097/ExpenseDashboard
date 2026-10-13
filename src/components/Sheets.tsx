@@ -1,9 +1,9 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  ArrowLeft, Banknote, BarChart3, CalendarClock, CalendarDays, ChevronDown, Compass, Copy, Delete, Download, FileSpreadsheet, Goal, HelpCircle, Landmark, Repeat, Scale, Settings as Cog, Trash2, Upload, Users, Wallet,
+  ArrowLeft, Banknote, BarChart3, CalendarClock, CalendarDays, ChevronDown, Compass, Plane, Copy, Delete, Download, FileSpreadsheet, Goal, HelpCircle, Landmark, Repeat, Scale, Settings as Cog, Trash2, Upload, Users, Wallet,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { catOf, cents, findDuplicate, FREQ, isPaid, monthsUntil, ruleKey, uid } from '../lib/calc'
+import { catOf, cents, findDuplicate, FREQ, isPaid, monthsUntil, ruleKey, tripDays, uid } from '../lib/calc'
 import { saveFile, workbook } from '../lib/files'
 import { addDays, addMonthsDate, iso, NOW, THIS_MONTH, TODAY } from '../lib/dates'
 import { balances } from '../lib/calc'
@@ -26,7 +26,7 @@ export default function Sheets() {
   const key = JSON.stringify(spec, (k, v) => (k === 'run' ? undefined : v))
   const titles: Record<SheetSpec['type'], string> = {
     quick: spec?.type === 'quick' && spec.edit ? 'Edit entry' : 'Add money in or out', bill: spec?.type === 'bill' && spec.id ? 'Edit regular item' : 'New regular item',
-    goal: spec?.type === 'goal' && spec.id ? 'Edit goal' : 'New savings goal', debt: spec?.type === 'debt' && spec.id ? 'Edit loan or card' : 'Add a loan or card',
+    goal: spec?.type === 'goal' && spec.id ? 'Edit goal' : 'New savings goal', trip: spec?.type === 'trip' && spec.id ? 'Edit trip' : 'New trip', debt: spec?.type === 'debt' && spec.id ? 'Edit loan or card' : 'Add a loan or card',
     holding: spec?.type === 'holding' && spec.id ? 'Edit' : spec?.type === 'holding' && spec.kind === 'owe' ? 'Add something you owe' : 'Add something you own',
     account: spec?.type === 'account' && spec.id ? 'Edit account' : 'Add account', category: spec?.type === 'category' && spec.id ? 'Edit category' : 'New category',
     help: 'Help & simple answers', more: 'Everything in Tally', csv: 'Import from your bank', backup: 'Back up & export', confirm: spec?.type === 'confirm' ? spec.title : '',
@@ -34,7 +34,7 @@ export default function Sheets() {
   }
   return (
     <>
-      {(['quick', 'bill', 'goal', 'debt', 'holding', 'account', 'category', 'help', 'more', 'csv', 'backup', 'confirm', 'occ', 'transfer'] as const).map((t) => (
+      {(['quick', 'bill', 'goal', 'trip', 'debt', 'holding', 'account', 'category', 'help', 'more', 'csv', 'backup', 'confirm', 'occ', 'transfer'] as const).map((t) => (
         <Sheet key={t} open={is(t)} onClose={close} title={titles[t]} wide={t === 'help' || t === 'backup'}>
           {spec?.type === t && <Body key={key} spec={spec} />}
         </Sheet>
@@ -48,6 +48,7 @@ function Body({ spec }: { spec: SheetSpec }) {
     case 'quick': return <QuickAdd spec={spec} />
     case 'bill': return <BillForm id={spec.id} />
     case 'goal': return <GoalForm id={spec.id} />
+    case 'trip': return <TripForm id={spec.id} />
     case 'debt': return <DebtForm id={spec.id} />
     case 'holding': return <HoldingForm id={spec.id} kind={spec.kind} />
     case 'account': return <AccountForm id={spec.id} />
@@ -101,6 +102,11 @@ function QuickAdd({ spec }: { spec: Extract<SheetSpec, { type: 'quick' }> }) {
   const [newSub, setNewSub] = useState('')
   const [dupOk, setDupOk] = useState(false)
   const [goal, setGoal] = useState('')
+  const [trip, setTrip] = useState(edit?.trip ?? spec.trip ?? '')
+  // trips worth offering: not long finished, plus whichever one is already chosen
+  const recentEnd = iso(addDays(NOW, -45))
+  const trips = (s.trips ?? []).filter((t) => t.id === trip || t.end >= recentEnd).sort((a, b) => a.start.localeCompare(b.start))
+  const onTrip = trips.find((t) => date >= t.start && date <= t.end)
   const cats = s.categories.filter((c) => c.kind === kind)
   const c = catOf(s, cat)
   const yesterday = iso(addDays(NOW, -1))
@@ -140,15 +146,17 @@ function QuickAdd({ spec }: { spec: Extract<SheetSpec, { type: 'quick' }> }) {
     const prev = update((d) => {
       if (newSub.trim()) { const x = d.categories.find((y) => y.id === cat); if (x && !(x.subs ?? []).includes(subName)) x.subs = [...(x.subs ?? []), subName] }
       if (repeat) { d.rules.push({ id: uid(), name: note.trim() || c?.name || 'Regular item', freq: repeat, start: date, paidThrough: date <= TODAY ? TODAY : '', ...fields }); return }
-      if (edit) { const t = d.tx.find((x) => x.id === edit.id); if (t) Object.assign(t, fields); return }
-      d.tx.push({ id: uid(), ...fields })
+      const tripId = kind !== 'savings' && trip && d.trips.some((x) => x.id === trip) ? trip : undefined
+      if (edit) { const t = d.tx.find((x) => x.id === edit.id); if (t) { Object.assign(t, fields); if (tripId) t.trip = tripId; else delete t.trip } return }
+      d.tx.push({ id: uid(), ...fields, ...(tripId ? { trip: tripId } : {}) })
       if (kind === 'savings' && goal) { const g = d.goals.find((x) => x.id === goal); if (g) { g.saved = (cents(g.saved) + cents(a)) / 100; g.history = [...(g.history ?? []), { date, amount: a }] } }
     })
     if (repeat) return done(`Added. It will now show up ${FREQ[repeat].short}.`, prev)
     if (edit) return done('Saved', prev)
     const g = goal ? s.goals.find((x) => x.id === goal) : null
     if (g && g.saved < g.target && g.saved + a >= g.target) celebrate(null, true)
-    done(`Added ${money(a)}${kind === 'expense' ? ` for ${c?.name}` : kind === 'income' ? ' coming in' : g ? ` to ${g.name}` : ' put aside'}`, prev)
+    const tr = kind !== 'savings' && trip ? s.trips.find((x) => x.id === trip) : null
+    done(`Added ${money(a)}${kind === 'expense' ? ` for ${c?.name}` : kind === 'income' ? ' coming in' : g ? ` to ${g.name}` : ' put aside'}${tr ? ` · ${tr.name}` : ''}`, prev)
   }
 
   if (step === 'cat') return (
@@ -186,6 +194,18 @@ function QuickAdd({ spec }: { spec: Extract<SheetSpec, { type: 'quick' }> }) {
           <span className="mr-1 text-[13px] font-semibold text-ink2">Type of {c.name.toLowerCase()}:</span>
           {(c.subs ?? []).map((x) => <button key={x} type="button" aria-pressed={sub === x} onClick={() => { setSub(sub === x ? '' : x); setNewSub('') }} className={`rounded-full border px-3 py-1 text-[13px] font-semibold ${sub === x ? 'border-accent bg-accent-soft text-accent' : 'border-line2 text-ink2'}`}>{x}</button>)}
           <input className="field !w-32 !rounded-full !py-1 text-[13px]" value={newSub} onChange={(e) => { setNewSub(e.target.value); setSub('') }} placeholder="+ new type" aria-label="New sub-category" maxLength={30} />
+        </div>
+      )}
+      {kind !== 'savings' && trips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Trip">
+          <span className="mr-1 flex items-center gap-1 text-[13px] font-semibold text-ink2"><Plane size={14} />{kind === 'income' ? 'Money back for a trip?' : 'Part of a trip?'}</span>
+          <button type="button" aria-pressed={!trip} onClick={() => setTrip('')} className={`rounded-full border px-3 py-1 text-[13px] font-semibold ${!trip ? 'border-accent bg-accent-soft text-accent' : 'border-line2 text-ink2'}`}>No</button>
+          {trips.map((t) => (
+            <button key={t.id} type="button" aria-pressed={trip === t.id} onClick={() => setTrip(trip === t.id ? '' : t.id)}
+              className={`rounded-full border px-3 py-1 text-[13px] font-semibold ${trip === t.id ? 'border-accent bg-accent-soft text-accent' : 'border-line2 text-ink2'}`}>
+              <span aria-hidden>{t.icon}</span> {t.name}{t === onTrip && trip !== t.id ? <span className="ml-1 text-[11px] font-bold text-good">on now</span> : null}
+            </button>
+          ))}
         </div>
       )}
       <input className="field" value={note} onChange={(e) => setNote(e.target.value)} placeholder={kind === 'expense' ? 'What was it? (optional)' : 'Note (optional)'} aria-label="Note" maxLength={80} />
@@ -311,6 +331,66 @@ function GoalForm({ id }: { id?: string }) {
       <Foot>
         {g && <Button variant="danger" className="mr-auto" onClick={() => { const prev = update((d) => { d.goals = d.goals.filter((x) => x.id !== g.id) }); done('Goal removed', prev) }}><Trash2 size={16} />Remove</Button>}
         <Button type="submit" variant="primary">{g ? 'Save' : 'Create goal'}</Button>
+      </Foot>
+    </form>
+  )
+}
+
+/* ---------------- trips ---------------- */
+const TRIP_ICONS = ['✈️', '🏖️', '🏔️', '🏙️', '🚗', '🏕️', '🚆', '🚢', '🎢', '🎿', '💍', '🌴']
+function TripForm({ id }: { id?: string }) {
+  const s = useData()
+  const { go, close } = useUI()
+  const t = (s.trips ?? []).find((x) => x.id === id)
+  const [name, setName] = useState(t?.name ?? '')
+  const [icon, setIcon] = useState(t?.icon ?? TRIP_ICONS[0])
+  const [start, setStart] = useState(t?.start ?? TODAY)
+  const [end, setEnd] = useState(t?.end ?? iso(addDays(NOW, 6)))
+  const [budget, setBudget] = useState(t && t.budget > 0 ? String(t.budget) : '')
+  const [note, setNote] = useState(t?.note ?? '')
+  const [err, setErr] = useState('')
+  const used = t ? s.tx.filter((x) => x.trip === t.id).length : 0
+  const days = start && end && end >= start ? tripDays({ start, end }) : 0
+  const b = parseFloat(budget)
+  const save = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!name.trim()) return setErr('Give the trip a name, like "Summer in Spain".')
+    if (!start || !end) return setErr('Pick the first and last day.')
+    if (end < start) return setErr('The last day must be on or after the first day.')
+    if (budget && !(b >= 0)) return setErr('The budget should be a number, or leave it empty.')
+    const v = { name: name.trim(), icon, start, end, budget: b > 0 ? Math.round(b * 100) / 100 : 0, note: note.trim() || undefined }
+    const prev = update((d) => { if (t) Object.assign(d.trips.find((x) => x.id === t.id)!, v); else d.trips.push({ id: uid(), ...v }) })
+    done(t ? 'Trip saved' : `${v.icon} ${v.name} created. Add expenses to it from any "Add" button.`, prev)
+    if (!t && useUI.getState().view !== 'trips') go('trips')
+  }
+  const remove = () => {
+    const prev = update((d) => { d.trips = d.trips.filter((x) => x.id !== t!.id); for (const x of d.tx) if (x.trip === t!.id) delete x.trip })
+    close(); toast(used ? `${t!.name} deleted. Its ${used} entries are kept in Activity without the trip tag.` : `${t!.name} deleted`, prev)
+  }
+  return (
+    <form onSubmit={save} className="flex flex-col gap-4">
+      {!t && <div className="flex flex-wrap gap-2">{['Summer holiday', 'Weekend away', 'Visiting family', 'Work trip', 'Wedding'].map((x) => <button key={x} type="button" onClick={() => setName(x)} className="rounded-full border border-line2 px-3 py-1 text-[13.5px] font-semibold hover:border-accent">{x}</button>)}</div>}
+      <Field label="Trip name"><input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Summer in Spain" maxLength={40} /></Field>
+      <div>
+        <p className="mb-2 text-[13.5px] font-semibold text-ink2">Picture</p>
+        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label="Trip picture">
+          {TRIP_ICONS.map((x) => <button key={x} type="button" role="radio" aria-checked={icon === x} aria-label={`Picture ${x}`} onClick={() => setIcon(x)} className={`grid h-11 w-11 place-items-center rounded-xl border-2 text-[22px] ${icon === x ? 'border-accent bg-accent-soft' : 'border-transparent bg-surface2'}`}>{x}</button>)}
+        </div>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="First day"><input className="field" type="date" value={start} onChange={(e) => { setStart(e.target.value); if (e.target.value > end) setEnd(e.target.value) }} /></Field>
+        <Field label="Last day"><input className="field" type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} /></Field>
+      </div>
+      <Field label="Budget for the whole trip (optional)" hint="Include bookings like flights and hotels. Leave empty to just track what you spend.">
+        <input className="field" type="number" min="0" step="any" inputMode="decimal" value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="e.g. 1500" />
+      </Field>
+      {b > 0 && days > 0 && <p className="rounded-2xl bg-accent-soft p-3.5 text-[14.5px]">That's about <b>{money(Math.round(b / days))}</b> a day for {days} day{days === 1 ? '' : 's'}.</p>}
+      <Field label="Note (optional)"><input className="field" value={note} onChange={(e) => setNote(e.target.value)} maxLength={80} placeholder="Who's going, where you're staying…" /></Field>
+      <p className="text-[13px] text-ink2">Trip expenses are normal expenses with the trip's name attached, so they still count in your month, your categories and your plan.</p>
+      <Err msg={err} />
+      <Foot>
+        {t && <Button variant="danger" className="mr-auto" onClick={remove}><Trash2 size={16} />Delete trip</Button>}
+        <Button type="submit" variant="primary">{t ? 'Save' : 'Create trip'}</Button>
       </Foot>
     </form>
   )
@@ -468,6 +548,7 @@ function CategoryForm({ id }: { id?: string }) {
 /* ---------------- help ---------------- */
 const FAQ: [string, string][] = [
   ['What is "Safe to spend"?', "It's the money that's really free this month. Tally takes everything coming in, then subtracts what you've spent, what you've put aside and the bills that still have to go out. If you only spend from this number, your bills are always covered."],
+  ['How do I track a trip or holiday?', 'Open Trips and create one with its dates and, if you like, a budget. Then, whenever you add an expense, tap the trip under "Part of a trip?". The expense still shows in Activity, your month and your plan as normal, with the trip\'s name next to it, and the trip page adds everything up: spent, left, per day, by category and who paid.'],
   ['How do I add something I bought?', 'Tap the big + button. Pick what it was (like Groceries), type the amount, and tap Add. That\'s it. You can press N on a keyboard too.'],
   ['What are regular items?', 'Things that repeat, like rent, your phone bill, subscriptions and your pay. Add them once under Bills and they appear every month by themselves. When one is paid, tap its tick box.'],
   ['What is a plan (budget)?', "A plan is how much you'd like to spend on each thing in a month. Tally shows how much is left in each 'pot' so you can slow down before you run out. Not sure what to plan? Tap 'Use this' to copy what you usually spend."],
@@ -506,7 +587,7 @@ function More() {
   const items: [View | 'help' | 'tour', string, string, typeof Goal][] = [
     ['calendar', 'Calendar', 'Your month day by day', CalendarDays], ['bills', 'Bills & pay', 'Things that repeat', CalendarClock],
     ['paycheck', 'Paycheck', 'Plan pay period by pay period', Banknote], ['year', 'My year', 'Totals, trends, reflection', BarChart3],
-    ['goals', 'Goals', 'Save up for things', Goal], ['debts', 'Debts', 'Get debt-free faster', Scale],
+    ['trips', 'Trips', 'Holidays and their costs', Plane], ['goals', 'Goals', 'Save up for things', Goal], ['debts', 'Debts', 'Get debt-free faster', Scale],
     ['accounts', 'Accounts', 'Banks, cards and cash', Wallet], ['worth', "What I'm worth", 'Own minus owe', Landmark],
     ['household', 'Household', 'Who spends what', Users], ['settings', 'Settings', 'Names, currency, data', Cog],
     ['help', 'Help', 'Simple answers', HelpCircle], ['tour', 'Take the tour', 'A 1-minute walk-through', Compass],
@@ -649,6 +730,7 @@ function CsvImport() {
         </div>
         {plan.invalid.length > 0 && <details className="rounded-2xl border border-line p-3 text-[13px]"><summary className="cursor-pointer font-semibold text-bad">Rows that will be left out ({plan.invalid.length})</summary><ul className="mt-2 max-h-32 overflow-auto text-ink2">{plan.invalid.slice(0, 50).map((x) => <li key={x.line}>Line {x.line}: {x.reason}</li>)}</ul></details>}
         {plan.newCats.length > 0 && <p className="text-[13px] text-ink2">New categories will be created: {plan.newCats.slice(0, 8).join(', ')}{plan.newCats.length > 8 ? '…' : ''}</p>}
+        {plan.newTrips.length > 0 && <p className="text-[13px] text-ink2">New trips will be created from the Trip column: {plan.newTrips.slice(0, 6).join(', ')}{plan.newTrips.length > 6 ? '…' : ''}</p>}
         {plan.dupCount > 0 && <label className="flex items-center gap-2 text-[14px] font-medium"><input type="checkbox" checked={skipDupes} onChange={(e) => setSkipDupes(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /> Skip the {plan.dupCount} that may already be in Tally (same date and amount)</label>}
         <Foot><Button variant="ghost" className="mr-auto" onClick={() => setPlan(null)}>Back</Button><Button variant="primary" onClick={commit} disabled={!adding}>Import {adding.toLocaleString()} item{adding === 1 ? '' : 's'}</Button></Foot>
       </div>
