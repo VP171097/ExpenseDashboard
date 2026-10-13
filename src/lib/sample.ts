@@ -115,6 +115,8 @@ export function sampleState(): State {
     if (owed > 0) transfers.push({ id: uid(), date: `${addMonths(k, 1)}-04`, from: 'chk', to: 'cc', amount: Math.round(owed * 100) / 100, note: 'Credit card payment' })
   }
   const due = (n: number) => iso(addMonthsDate(NOW, n))
+  // a contribution on the 28th of each of the last four months
+  const hist = (amount: number) => [4, 3, 2, 1].map((n) => ({ date: `${addMonths(THIS_MONTH, -n)}-28`, amount }))
   const st: State = {
     v: 2, sample: true, people,
     accounts: [
@@ -124,8 +126,8 @@ export function sampleState(): State {
     ],
     categories: baseCategories(), tx, rules, paid: {}, skip: {},
     goals: [
-      { id: uid(), name: 'Rainy day fund', target: 12000, saved: 7450, due: due(10) },
-      { id: uid(), name: 'Summer trip to Porto', target: 2400, saved: 1380, due: due(8) },
+      { id: uid(), name: 'Rainy day fund', target: 12000, saved: 7450, due: due(10), history: hist(300) },
+      { id: uid(), name: 'Summer trip to Porto', target: 2400, saved: 1380, due: due(8), history: hist(150) },
       { id: uid(), name: 'New laptop', target: 1600, saved: 1600, due: due(1) },
       { id: uid(), name: "Mia's wedding gift", target: 300, saved: 80, due: due(1) },
     ],

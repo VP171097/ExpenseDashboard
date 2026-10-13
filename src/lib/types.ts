@@ -12,7 +12,7 @@ export interface Rule {
   id: string; name: string; type: Kind; cat: string; amount: number; freq: Freq; start: string; end?: string
   account: string; to?: string; person?: string; paidThrough?: string; sub?: string
 }
-export interface Goal { id: string; name: string; target: number; saved: number; due: string }
+export interface Goal { id: string; name: string; target: number; saved: number; due: string; history?: { date: string; amount: number }[] }
 export interface Debt { id: string; name: string; balance: number; rate: number; min: number; order?: number }
 export interface Holding { id: string; name: string; kind: 'own' | 'owe'; group: string; value: number }
 
@@ -32,6 +32,10 @@ export interface Settings {
   strategy: 'cheapest' | 'quickwins' | 'custom'
   forecast: { monthly: number; rate: number; years: number }
   theme: 'system' | 'light' | 'dark'
+  /** 'reduced' turns off 3D, tilt, particles and confetti */
+  effects?: 'full' | 'reduced'
+  /** when the last full backup was exported (ISO date) */
+  lastBackup?: string
 }
 
 export interface State {

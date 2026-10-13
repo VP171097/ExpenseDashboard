@@ -2,8 +2,10 @@ import { motion } from 'framer-motion'
 import { CalendarClock, ChevronRight, Plus } from 'lucide-react'
 import { ItemRow } from '../components/bits'
 import { Bar, Button, Card, CardHead, CatIcon, Chip, Empty, Num, Ring } from '../components/ui'
-import { catOf, FREQ, monthItems, nextDue, perMonth, sum } from '../lib/calc'
-import { fmtDate, monthName, ordinal, parse } from '../lib/dates'
+import { catOf, earliestMonth, FREQ, itemsIn, monthItems, nextDue, perMonth, sum } from '../lib/calc'
+import { Pager, usePaged } from '../components/Pager'
+import { useMemo, useState } from 'react'
+import { fmtDate, monthName, ordinal, parse, TODAY } from '../lib/dates'
 import { money } from '../lib/money'
 import { useData, useUI } from '../lib/store'
 import type { Rule } from '../lib/types'
@@ -89,6 +91,8 @@ export default function Bills() {
         )}
       </Card>
 
+      <PaymentHistory />
+
       {subs.length > 0 && (
         <Card i={6} className="col-span-12">
           <CardHead title="Subscriptions check-up" sub="Small monthly costs add up. Here's what each one costs you in a year." />
@@ -106,5 +110,23 @@ export default function Bills() {
         </Card>
       )}
     </div>
+  )
+}
+
+/** Every past payment of every regular item, newest first, a page at a time. */
+function PaymentHistory() {
+  const s = useData()
+  const [who, setWho] = useState('')
+  const list = useMemo(() => itemsIn(s, `${earliestMonth(s)}-01`, TODAY).filter((t) => t.virtual && (!who || t.ruleId === who)).sort((a, b) => b.date.localeCompare(a.date)), [s, who])
+  const pg = usePaged(list, who, 10)
+  const missed = list.filter((t) => !t.paid && t.type !== 'income').length
+  return (
+    <Card i={7} className="col-span-12">
+      <CardHead title="Payment history" sub="Every regular payment so far. Tap one to change it, skip it or mark it paid."
+        right={<select className="field !w-auto !py-1.5" value={who} onChange={(e) => setWho(e.target.value)} aria-label="Show payments for"><option value="">All regular items</option>{s.rules.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select>} />
+      {missed > 0 && <p className="mb-2 text-[13.5px] text-warn">{missed} past payment{missed === 1 ? ' is' : 's are'} not ticked off.</p>}
+      {list.length ? <div className="-mx-2">{pg.rows.map((t) => <ItemRow key={t.id} item={t} showDate />)}</div> : <Empty title="No payments yet" />}
+      <Pager {...pg} noun="payments" />
+    </Card>
   )
 }

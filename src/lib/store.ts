@@ -1,14 +1,10 @@
 import { create } from 'zustand'
-import { createJSONStorage, persist } from 'zustand/middleware'
+import { persist, type PersistStorage } from 'zustand/middleware'
+import { produce, setAutoFreeze } from 'immer'
+import { askPersistent, localFirstStorage, onSave } from './storage'
 import { addMonths, THIS_MONTH } from './dates'
 import { worthNow } from './calc'
 import type { Kind, State, Tx } from './types'
-
-const safeStorage = {
-  getItem: (n: string) => { try { return localStorage.getItem(n) } catch { return null } },
-  setItem: (n: string, v: string) => { try { localStorage.setItem(n, v) } catch { /* storage unavailable */ } },
-  removeItem: (n: string) => { try { localStorage.removeItem(n) } catch { /* storage unavailable */ } },
-}
 
 export function upgrade(d: State | null): State | null {
   if (!d) return d
@@ -17,16 +13,22 @@ export function upgrade(d: State | null): State | null {
   d.reflections ??= {}
   d.settings.payAnchor ??= THIS_MONTH + '-01'
   d.settings.payDays ??= 14
+  d.settings.effects ??= 'full'
   return d
 }
+/** Record this month's net worth so the history chart has a point for it. */
 function stamp(d: State) {
   const w = worthNow(d)
   d.history[THIS_MONTH] = { own: Math.round(w.own), owe: Math.round(w.owe) }
 }
 
+setAutoFreeze(false)
+
 interface DataStore {
   data: State | null
-  /** Apply a change to a copy of the data. Returns the previous data so the change can be undone. */
+  hydrated: boolean
+  saveError: string | null
+  /** Apply a change. Unchanged records are shared, not copied. Returns the previous data for undo. */
   update: (fn: (d: State) => void) => State | null
   replace: (d: State | null) => void
 }
@@ -34,24 +36,44 @@ export const useStore = create<DataStore>()(
   persist(
     (set, get) => ({
       data: null,
+      hydrated: false,
+      saveError: null,
       update: (fn) => {
         const cur = get().data
         if (!cur) return null
-        const next = structuredClone(cur)
-        fn(next)
-        stamp(next)
-        set({ data: next })
+        set({ data: produce(cur, fn) })
         return cur
       },
       replace: (d) => { if (d) { upgrade(d); stamp(d) } set({ data: d }) },
     }),
     {
-      name: 'tally.v2', storage: createJSONStorage(() => safeStorage), partialize: (s) => ({ data: s.data }),
+      name: 'tally.v2', storage: localFirstStorage as unknown as PersistStorage<{ data: State | null }>, partialize: (s) => ({ data: s.data }),
       // fill in fields added after a backup or an earlier visit was saved
       merge: (saved, current) => ({ ...current, data: upgrade((saved as { data?: State | null })?.data ?? null) }),
+      onRehydrateStorage: () => () => {
+        const d = useStore.getState().data
+        if (d) useStore.setState({ data: produce(d, stamp) })
+        useStore.setState({ hydrated: true })
+        confirmed = useStore.getState().data
+        if (d) askPersistent()
+      },
     },
   ),
 )
+
+/* If a save fails, undo the unsaved change on screen and say why, so what you see is what is stored. */
+let confirmed: State | null = null
+let queued: State | null = null
+useStore.subscribe((s) => { queued = s.data })
+onSave((ok, _where, error) => {
+  if (ok) { confirmed = queued; if (useStore.getState().saveError) useStore.setState({ saveError: null }); return }
+  const msg = error === 'quota' ? 'This browser is out of storage space for Tally.' : 'This browser would not let Tally save.'
+  const cur = useStore.getState().data
+  if (confirmed && cur !== confirmed) useStore.setState({ data: confirmed })
+  useStore.setState({ saveError: msg })
+  toast(`${msg} Your last change was undone. Download a backup from Settings to keep your data safe.`)
+})
+
 export const useData = () => useStore((s) => s.data) as State
 export const update = (fn: (d: State) => void) => useStore.getState().update(fn)
 export const replaceData = (d: State | null) => useStore.getState().replace(d)
@@ -75,9 +97,10 @@ export type SheetSpec =
 
 export interface Filter {
   q: string; type: '' | Kind | 'bills'; cat: string; sub: string; person: string; status: '' | 'paid' | 'upcoming'
-  group: '' | 'essentials' | 'extras' | 'future'; account: string; scope: 'month' | 'year'; sort: 'newest' | 'oldest' | 'biggest' | 'smallest'
+  group: '' | 'essentials' | 'extras' | 'future'; account: string; scope: 'month' | 'year' | 'all' | 'range'; from: string; to: string
+  sort: 'newest' | 'oldest' | 'biggest' | 'smallest'
 }
-export const EMPTY_FILTER: Filter = { q: '', type: '', cat: '', sub: '', person: '', status: '', group: '', account: '', scope: 'month', sort: 'newest' }
+export const EMPTY_FILTER: Filter = { q: '', type: '', cat: '', sub: '', person: '', status: '', group: '', account: '', scope: 'month', from: '', to: '', sort: 'newest' }
 interface UIStore {
   view: View
   month: string

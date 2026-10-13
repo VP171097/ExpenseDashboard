@@ -2,16 +2,16 @@ import { AnimatePresence, motion } from 'framer-motion'
 import {
   ArrowLeft, Banknote, BarChart3, CalendarClock, CalendarDays, ChevronDown, Compass, Copy, Delete, Download, FileSpreadsheet, Goal, HelpCircle, Landmark, Repeat, Scale, Settings as Cog, Trash2, Upload, Users, Wallet,
 } from 'lucide-react'
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { catOf, findDuplicate, FREQ, isPaid, monthsUntil, ruleKey, uid } from '../lib/calc'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { catOf, cents, findDuplicate, FREQ, isPaid, monthsUntil, ruleKey, uid } from '../lib/calc'
 import { saveFile, workbook } from '../lib/files'
 import { addDays, addMonthsDate, iso, NOW, THIS_MONTH, TODAY } from '../lib/dates'
 import { balances } from '../lib/calc'
-import { importCsv, toCsv } from '../lib/io'
+import { checkBackup, commitImport, prepareImport, toCsv, type ImportPlan } from '../lib/io'
 import { money, symbol } from '../lib/money'
 import { replaceData, toast, update, useData, useStore, useUI, type SheetSpec, type View } from '../lib/store'
 import type { Category, Freq, Kind, State } from '../lib/types'
-import { Button, CatIcon, Field, ICONS, Segmented, Sheet } from './ui'
+import { Button, CatIcon, celebrate, Field, ICONS, Segmented, Sheet } from './ui'
 
 const KIND_WORD: Record<Kind, string> = { expense: 'Money out', income: 'Money in', savings: 'Put aside' }
 
@@ -62,7 +62,7 @@ function Body({ spec }: { spec: SheetSpec }) {
   }
 }
 
-const done = (msg: string, prev?: State | null) => { useUI.getState().close(); toast(msg, prev) }
+const done = (msg: string, prev?: State | null) => { useUI.getState().close(); toast(msg, prev, 'good') }
 const Err = ({ msg }: { msg: string }) => <AnimatePresence>{msg && <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="text-[13.5px] font-semibold text-bad" role="alert">{msg}</motion.p>}</AnimatePresence>
 const Foot = ({ children }: { children: ReactNode }) => <div className="mt-6 flex flex-wrap items-center justify-end gap-2">{children}</div>
 
@@ -100,6 +100,7 @@ function QuickAdd({ spec }: { spec: Extract<SheetSpec, { type: 'quick' }> }) {
   const [sub, setSub] = useState(edit?.sub ?? '')
   const [newSub, setNewSub] = useState('')
   const [dupOk, setDupOk] = useState(false)
+  const [goal, setGoal] = useState('')
   const cats = s.categories.filter((c) => c.kind === kind)
   const c = catOf(s, cat)
   const yesterday = iso(addDays(NOW, -1))
@@ -126,23 +127,28 @@ function QuickAdd({ spec }: { spec: Extract<SheetSpec, { type: 'quick' }> }) {
     return () => window.removeEventListener('keydown', h)
   })
 
+  const saving = useRef(false)
   const save = () => {
+    if (saving.current) return // a second click while saving does nothing
     const a = Math.round(parseFloat(amt) * 100) / 100
     if (!(a > 0)) { setShake((x) => x + 1); return }
     if (!repeat && !dupOk && findDuplicate(s, { id: edit?.id, date, amount: a, cat })) { setDupOk(true); return }
+    saving.current = true
     const subName = newSub.trim() || sub
-    const fields = { type: kind, amount: a, cat, date, note: note.trim(), account, to: kind === 'savings' ? to : undefined, person, sub: subName || undefined }
-    if (newSub.trim()) update((d) => { const x = d.categories.find((y) => y.id === cat); if (x && !(x.subs ?? []).includes(subName)) x.subs = [...(x.subs ?? []), subName] })
-    if (repeat) {
-      const prev = update((d) => { d.rules.push({ id: uid(), name: note.trim() || c?.name || 'Regular item', freq: repeat, start: date, paidThrough: date <= TODAY ? TODAY : '', ...fields }) })
-      return done(`Added. It will now show up ${FREQ[repeat].short}.`, prev)
-    }
-    if (edit) {
-      const prev = update((d) => { const t = d.tx.find((x) => x.id === edit.id); if (t) Object.assign(t, fields) })
-      return done('Saved', prev)
-    }
-    const prev = update((d) => { d.tx.push({ id: uid(), ...fields }) })
-    done(`Added ${money(a)}${kind === 'expense' ? ` for ${c?.name}` : kind === 'income' ? ' coming in' : ' put aside'}`, prev)
+    const fields = { type: kind, amount: a, cat, date, note: note.trim() || (goal ? `For ${s.goals.find((g) => g.id === goal)?.name}` : ''), account, to: kind === 'savings' ? to : undefined, person, sub: subName || undefined }
+    // one change, so one Undo reverses all of it
+    const prev = update((d) => {
+      if (newSub.trim()) { const x = d.categories.find((y) => y.id === cat); if (x && !(x.subs ?? []).includes(subName)) x.subs = [...(x.subs ?? []), subName] }
+      if (repeat) { d.rules.push({ id: uid(), name: note.trim() || c?.name || 'Regular item', freq: repeat, start: date, paidThrough: date <= TODAY ? TODAY : '', ...fields }); return }
+      if (edit) { const t = d.tx.find((x) => x.id === edit.id); if (t) Object.assign(t, fields); return }
+      d.tx.push({ id: uid(), ...fields })
+      if (kind === 'savings' && goal) { const g = d.goals.find((x) => x.id === goal); if (g) { g.saved = (cents(g.saved) + cents(a)) / 100; g.history = [...(g.history ?? []), { date, amount: a }] } }
+    })
+    if (repeat) return done(`Added. It will now show up ${FREQ[repeat].short}.`, prev)
+    if (edit) return done('Saved', prev)
+    const g = goal ? s.goals.find((x) => x.id === goal) : null
+    if (g && g.saved < g.target && g.saved + a >= g.target) celebrate(null, true)
+    done(`Added ${money(a)}${kind === 'expense' ? ` for ${c?.name}` : kind === 'income' ? ' coming in' : g ? ` to ${g.name}` : ' put aside'}`, prev)
   }
 
   if (step === 'cat') return (
@@ -197,6 +203,7 @@ function QuickAdd({ spec }: { spec: Extract<SheetSpec, { type: 'quick' }> }) {
           <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
             <div className="grid gap-3 pb-1 sm:grid-cols-2">
               <Field label={kind === 'savings' ? 'From account' : 'Account'}><select className="field" value={account} onChange={(e) => setAccount(e.target.value)}>{s.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
+              {kind === 'savings' && s.goals.some((g) => g.saved < g.target) && <Field label="For a goal (optional)"><select className="field" value={goal} onChange={(e) => setGoal(e.target.value)}><option value="">No particular goal</option>{s.goals.filter((g) => g.saved < g.target).map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}</select></Field>}
               {kind === 'savings' && <Field label="Moved to"><select className="field" value={to} onChange={(e) => setTo(e.target.value)}><option value="">Somewhere else (e.g. investments)</option>{s.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>}
               {s.people.length > 1 && <Field label="Who"><select className="field" value={person} onChange={(e) => setPerson(e.target.value)}>{s.people.map((p) => <option key={p}>{p}</option>)}</select></Field>}
               {!edit && <Field label="Happens regularly?"><select className="field" value={repeat} onChange={(e) => setRepeat(e.target.value as Freq | '')}><option value="">No, just once</option>{Object.entries(FREQ).map(([k, f]) => <option key={k} value={k}>{f.label}</option>)}</select></Field>}
@@ -602,25 +609,62 @@ function TransferForm({ id, from, to }: { id?: string; from?: string; to?: strin
 
 /* ---------------- import / export ---------------- */
 function CsvImport() {
+  const s = useData()
   const [text, setText] = useState('')
   const [err, setErr] = useState('')
-  const run = () => {
+  const [plan, setPlan] = useState<ImportPlan | null>(null)
+  const [progress, setProgress] = useState<number | null>(null)
+  const [skipDupes, setSkipDupes] = useState(true)
+  const check = async () => {
     if (!text.trim()) return setErr('Choose a file or paste the text first.')
-    let res: number | string = 0
-    const prev = update((d) => { res = importCsv(d, text) })
-    if (typeof res === 'string') { replaceData(prev); return setErr(res) }
-    done(`Imported ${res} item${res === 1 ? '' : 's'}`, prev)
+    setErr(''); setProgress(0)
+    const res = await prepareImport(s, text, (d, t) => setProgress(t ? d / t : 1))
+    setProgress(null)
+    if (typeof res === 'string') return setErr(res)
+    setPlan(res)
+  }
+  const commit = () => {
+    if (!plan) return
+    let n = 0
+    const prev = update((d) => { n = commitImport(d, plan, skipDupes) })
+    done(`Imported ${n.toLocaleString()} item${n === 1 ? '' : 's'}`, prev)
+  }
+  if (plan) {
+    const adding = plan.rows.filter((r) => !(skipDupes && r.dup)).length
+    return (
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="rounded-2xl bg-good-soft p-3"><p className="font-display text-[24px] font-bold text-good">{plan.rows.length.toLocaleString()}</p><p className="text-[12.5px] text-ink2">rows look good</p></div>
+          <div className="rounded-2xl bg-warn-soft p-3"><p className="font-display text-[24px] font-bold text-warn">{plan.dupCount.toLocaleString()}</p><p className="text-[12.5px] text-ink2">may already be in Tally</p></div>
+          <div className="rounded-2xl bg-bad-soft p-3"><p className="font-display text-[24px] font-bold text-bad">{plan.invalid.length.toLocaleString()}</p><p className="text-[12.5px] text-ink2">can't be read</p></div>
+        </div>
+        <div className="-mx-6 overflow-x-auto px-6">
+          <table className="w-full min-w-[480px] text-[13px]">
+            <thead><tr className="label text-left"><th className="py-1.5">Date</th><th>Description</th><th>Type</th><th className="text-right">Amount</th></tr></thead>
+            <tbody>{plan.rows.slice(0, 8).map((r) => (
+              <tr key={r.line} className={`border-t border-line ${r.dup ? 'opacity-60' : ''}`}><td className="py-1.5 tnum">{r.date}</td><td className="max-w-[180px] truncate">{r.note || r.catName || '—'}{r.dup && <span className="ml-1 text-warn">(already there?)</span>}</td><td>{KIND_WORD[r.type]}</td><td className="tnum text-right">{money(r.amount)}</td></tr>
+            ))}</tbody>
+          </table>
+          {plan.rows.length > 8 && <p className="mt-1 text-[12.5px] text-muted">…and {(plan.rows.length - 8).toLocaleString()} more</p>}
+        </div>
+        {plan.invalid.length > 0 && <details className="rounded-2xl border border-line p-3 text-[13px]"><summary className="cursor-pointer font-semibold text-bad">Rows that will be left out ({plan.invalid.length})</summary><ul className="mt-2 max-h-32 overflow-auto text-ink2">{plan.invalid.slice(0, 50).map((x) => <li key={x.line}>Line {x.line}: {x.reason}</li>)}</ul></details>}
+        {plan.newCats.length > 0 && <p className="text-[13px] text-ink2">New categories will be created: {plan.newCats.slice(0, 8).join(', ')}{plan.newCats.length > 8 ? '…' : ''}</p>}
+        {plan.dupCount > 0 && <label className="flex items-center gap-2 text-[14px] font-medium"><input type="checkbox" checked={skipDupes} onChange={(e) => setSkipDupes(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /> Skip the {plan.dupCount} that may already be in Tally (same date and amount)</label>}
+        <Foot><Button variant="ghost" className="mr-auto" onClick={() => setPlan(null)}>Back</Button><Button variant="primary" onClick={commit} disabled={!adding}>Import {adding.toLocaleString()} item{adding === 1 ? '' : 's'}</Button></Foot>
+      </div>
+    )
   }
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[14.5px] text-ink2">Most banks let you download your transactions as a CSV file. Choose that file here. Tally reads the date, description and amount. Negative amounts count as money out.</p>
+      <p className="text-[14.5px] text-ink2">Most banks let you download your transactions as a CSV file. Choose that file here. Tally reads the date, description and amount (and category, type or person if present). Negative amounts count as money out. You'll see a preview before anything is added.</p>
       <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-line2 p-6 text-center hover:border-accent">
         <Upload className="text-accent" /><span className="font-semibold">Choose a CSV file</span><span className="text-[13px] text-muted">or paste the text below</span>
         <input type="file" accept=".csv,text/csv,text/plain" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => setText(String(r.result)); r.readAsText(f) }} />
       </label>
       <textarea className="field min-h-[140px] font-mono text-[12.5px]" value={text} onChange={(e) => setText(e.target.value)} placeholder={'Date,Description,Amount\n2026-10-02,Supermarket,-54.20'} aria-label="CSV text" />
+      {progress != null && <div className="flex items-center gap-3 text-[13px] text-ink2"><div className="h-2 flex-1 overflow-hidden rounded-full bg-surface2"><motion.div className="h-full bg-accent" animate={{ width: `${progress * 100}%` }} /></div>Checking rows…</div>}
       <Err msg={err} />
-      <Foot><Button variant="primary" onClick={run}>Import</Button></Foot>
+      <Foot><Button variant="primary" onClick={check} disabled={progress != null}>Check file</Button></Foot>
     </div>
   )
 }
@@ -629,22 +673,28 @@ function Backup() {
   const [tab, setTab] = useState<'excel' | 'csv' | 'json' | 'restore'>('excel')
   const [paste, setPaste] = useState('')
   const [err, setErr] = useState('')
-  const text = tab === 'csv' ? toCsv(s) : JSON.stringify(s)
+  const text = useMemo(() => (tab === 'csv' ? toCsv(s) : tab === 'json' ? JSON.stringify(s) : ''), [tab, s])
   const ref = useRef<HTMLTextAreaElement>(null)
-  const copy = () => navigator.clipboard?.writeText(text).then(() => toast('Copied'), () => { ref.current?.select(); toast('Press Ctrl+C (or ⌘C) to copy') }) ?? (ref.current?.select(), toast('Press Ctrl+C (or ⌘C) to copy'))
+  const copy = () => navigator.clipboard?.writeText(text).then(() => { if (tab === 'json') update((d) => { d.settings.lastBackup = new Date().toISOString() }); toast('Copied') }, () => { ref.current?.select(); toast('Press Ctrl+C (or ⌘C) to copy') }) ?? (ref.current?.select(), toast('Press Ctrl+C (or ⌘C) to copy'))
   const download = async () => {
-    const r = tab === 'excel' ? await saveFile(`tally-${THIS_MONTH.slice(0, 4)}.xlsx`, workbook(s, +THIS_MONTH.slice(0, 4)))
+    const r = tab === 'excel' ? await saveFile(`tally-${THIS_MONTH.slice(0, 4)}.xlsx`, await workbook(s, +THIS_MONTH.slice(0, 4)))
       : await saveFile(tab === 'csv' ? 'tally-activity.csv' : 'tally-backup.json', text)
+    if (r === 'saved' && tab === 'json') update((d) => { d.settings.lastBackup = new Date().toISOString() })
     toast(r === 'saved' ? 'File ready' : r === 'declined' ? 'Download cancelled' : 'Downloads are blocked here. Use Copy instead.')
   }
+  const [found, setFound] = useState<{ state: State; summary: string } | null>(null)
   const restore = () => {
-    try {
-      const x = JSON.parse(paste) as State
-      if (!x || x.v !== 2 || !Array.isArray(x.tx)) return setErr("That doesn't look like a Tally backup.")
-      const before = useStore.getState().data
-      replaceData(x)
-      done('Backup restored', before)
-    } catch { setErr('That text could not be read. Paste the whole backup.') }
+    let x: unknown
+    try { x = JSON.parse(paste) } catch { return setErr('That text could not be read. Paste the whole backup.') }
+    const r = checkBackup(x)
+    if (!r.ok) return setErr(r.reason)
+    setErr(''); setFound({ state: r.state, summary: r.summary })
+  }
+  const confirmRestore = () => {
+    if (!found) return
+    const before = useStore.getState().data
+    replaceData(found.state)
+    done('Backup restored. Undo brings back what you had before.', before)
   }
   return (
     <div className="flex flex-col gap-4">
@@ -659,7 +709,13 @@ function Backup() {
           <p className="text-[14.5px] text-ink2">Paste a full backup here. It replaces what's in Tally now.</p>
           <textarea className="field min-h-[160px] font-mono text-[12px]" value={paste} onChange={(e) => setPaste(e.target.value)} aria-label="Backup text" />
           <Err msg={err} />
-          <Foot><Button variant="primary" onClick={restore}>Restore</Button></Foot>
+          {found ? (
+            <div className="rounded-2xl border border-warn bg-warn-soft p-4 text-[14px]">
+              <p className="font-semibold">This backup has {found.summary}</p>
+              <p className="mt-1 text-ink2">Restoring replaces everything in Tally now. You can undo straight afterwards.</p>
+              <Foot><Button variant="ghost" onClick={() => setFound(null)}>Cancel</Button><Button variant="danger" onClick={confirmRestore}>Replace my data</Button></Foot>
+            </div>
+          ) : <Foot><Button variant="primary" onClick={restore}>Check backup</Button></Foot>}
         </>
       ) : (
         <>

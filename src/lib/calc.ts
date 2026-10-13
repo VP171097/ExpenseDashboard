@@ -1,8 +1,10 @@
 import { addDays, addMonths, addMonthsDate, daysIn, iso, monthEnd, monthsBetween, NOW, parse, THIS_MONTH, TODAY } from './dates'
-import type { Category, Debt, Freq, Item, Rule, State } from './types'
+import type { Category, Debt, Freq, Item, Rule, State, Transfer, Tx } from './types'
 import { money0 as fmtM } from './money'
 
-export const sum = (a: number[]) => a.reduce((s, v) => s + (+v || 0), 0)
+/* Money is stored with at most two decimals and always added up in whole cents, so totals never drift. */
+export const cents = (v: number) => Math.round((+v || 0) * 100)
+export const sum = (a: number[]) => a.reduce((s, v) => s + cents(v), 0) / 100
 export const clamp = (v: number, a: number, b: number) => Math.max(a, Math.min(b, v))
 export const uid = () => Math.random().toString(36).slice(2, 10)
 
@@ -50,10 +52,34 @@ export function isPaid(s: State, r: Rule, d: string) {
   return !!r.paidThrough && d <= r.paidThrough
 }
 
+/* One-off entries grouped by month, so a query only touches the months it needs. */
+function txIndex(s: State) {
+  return memo(s, 'txIndex', () => {
+    const m = new Map<string, Tx[]>()
+    for (const t of s.tx) { const k = t.date.slice(0, 7); let b = m.get(k); if (!b) m.set(k, (b = [])); b.push(t) }
+    return { byMonth: m, months: [...m.keys()].sort() }
+  })
+}
+function transfersByMonth(s: State) {
+  return memo(s, 'trIndex', () => {
+    const m = new Map<string, Transfer[]>()
+    for (const t of s.transfers ?? []) { const k = t.date.slice(0, 7); let b = m.get(k); if (!b) m.set(k, (b = [])); b.push(t) }
+    return m
+  })
+}
+/* Unchanged entries keep their object identity between edits, so their list form is built once. */
+const itemCache = new WeakMap<Tx, Item>()
+const asItem = (t: Tx) => { let i = itemCache.get(t); if (!i) { i = { ...t, paid: true }; itemCache.set(t, i) } return i }
+
 export function itemsIn(s: State, from: string, to: string): Item[] {
   return memo(s, `items|${from}|${to}`, () => {
     const out: Item[] = []
-    for (const t of s.tx) if (t.date >= from && t.date <= to) out.push({ ...t, paid: true })
+    const fm = from.slice(0, 7), tm = to.slice(0, 7), idx = txIndex(s)
+    for (const k of idx.months) {
+      if (k < fm || k > tm) continue
+      const edge = k === fm || k === tm
+      for (const t of idx.byMonth.get(k)!) if (!edge || (t.date >= from && t.date <= to)) out.push(asItem(t))
+    }
     // look a month either side so a single payment moved across a month boundary still shows up
     const wideFrom = iso(addDays(parse(from), -40)), wideTo = to > '2900' ? to : iso(addDays(parse(to), 40))
     for (const r of s.rules)
@@ -88,13 +114,14 @@ export function monthStats(s: State, k: string): MonthStats {
   return memo(s, 'st|' + k, () => {
     const dim = daysIn(k)
     const z = () => Array(dim + 1).fill(0) as number[]
+    // everything below is counted in whole cents and converted back at the end
     const m: MonthStats = {
       income: 0, spent: 0, saved: 0, expectedIn: 0, billsDue: 0, savingDue: 0, nDue: 0, everydaySpent: 0, billsAll: 0,
       byCat: {}, byGroup: { essentials: 0, extras: 0, future: 0 }, byPerson: {}, byDay: z(), extrasDay: z(), inDay: z(), savedDay: z(), biggest: null, bySub: {}, people: {},
     }
     const P = (n?: string) => (m.people[n || '—'] ??= { in: 0, saved: 0, spent: 0, byCat: {} })
     for (const t of monthItems(s, k)) {
-      const a = +t.amount || 0, day = +t.date.slice(8)
+      const a = cents(t.amount), day = +t.date.slice(8)
       if (t.virtual && t.type === 'expense') m.billsAll += a
       if (!t.paid) {
         if (t.type === 'income') m.expectedIn += a
@@ -114,9 +141,16 @@ export function monthStats(s: State, k: string): MonthStats {
         if (!t.virtual) m.everydaySpent += a
         m.byDay[day] += a
         if (g === 'extras') m.extrasDay[day] += a
-        if (!t.virtual && (!m.biggest || a > m.biggest.amount)) m.biggest = t
+        if (!t.virtual && (!m.biggest || t.amount > m.biggest.amount)) m.biggest = t
       }
     }
+    const d = (v: number) => v / 100
+    const dm = (o: Record<string, number>) => { for (const key in o) o[key] = d(o[key]) }
+    for (const key of ['income', 'spent', 'saved', 'expectedIn', 'billsDue', 'savingDue', 'everydaySpent', 'billsAll'] as const) m[key] = d(m[key])
+    dm(m.byCat); dm(m.byGroup as Record<string, number>); dm(m.byPerson)
+    for (const a of [m.byDay, m.extrasDay, m.inDay, m.savedDay]) for (let i = 0; i < a.length; i++) a[i] = d(a[i])
+    for (const c in m.bySub) dm(m.bySub[c])
+    for (const p in m.people) { const x = m.people[p]; x.in = d(x.in); x.saved = d(x.saved); x.spent = d(x.spent); dm(x.byCat) }
     return m
   })
 }
@@ -126,6 +160,7 @@ function firstMonth(s: State) {
     let m = THIS_MONTH
     s.tx.forEach((t) => { if (t.date.slice(0, 7) < m) m = t.date.slice(0, 7) })
     s.rules.forEach((r) => { if (r.start.slice(0, 7) < m) m = r.start.slice(0, 7) })
+    ;(s.transfers ?? []).forEach((t) => { if (t.date.slice(0, 7) < m) m = t.date.slice(0, 7) })
     return m
   })
 }
@@ -140,22 +175,51 @@ export function planFor(s: State, c: Category, k: string, depth = 0): number {
 }
 export const totalPlan = (s: State, k: string) => memo(s, 'tp|' + k, () => sum(spendCats(s).map((c) => planFor(s, c, k))))
 
+type Cents = Record<string, number>
+/** How each account moved (in cents) from paid items and transfers in a date range inside one month. */
+function deltas(s: State, from: string, to: string): Cents {
+  const b: Cents = {}
+  for (const t of itemsIn(s, from, to)) {
+    if (!t.paid) continue
+    const a = cents(t.amount)
+    if (t.type === 'income') b[t.account] = (b[t.account] || 0) + a
+    else { b[t.account] = (b[t.account] || 0) - a; if (t.type === 'savings' && t.to) b[t.to] = (b[t.to] || 0) + a }
+  }
+  for (const t of transfersByMonth(s).get(from.slice(0, 7)) ?? []) if (t.date >= from && t.date <= to) {
+    const a = cents(t.amount); b[t.from] = (b[t.from] || 0) - a; b[t.to] = (b[t.to] || 0) + a
+  }
+  return b
+}
+/** Balances (cents) at the end of every month, built forward one month at a time and cached. */
+function monthEndBalances(s: State, k: string): Cents {
+  const cache = memo(s, 'balEnd', () => new Map<string, Cents>())
+  const first = firstMonth(s)
+  const starts: Cents = {}
+  s.accounts.forEach((a) => (starts[a.id] = cents(a.start)))
+  if (k < first) return starts
+  if (cache.has(k)) return cache.get(k)!
+  let cur = first, prev = starts
+  // resume from the latest cached month before k
+  for (let x = addMonths(k, -1); x >= first; x = addMonths(x, -1)) if (cache.has(x)) { prev = cache.get(x)!; cur = addMonths(x, 1); break }
+  for (; cur <= k; cur = addMonths(cur, 1)) {
+    const d = deltas(s, cur + '-01', monthEnd(cur)), next = { ...prev }
+    for (const id in d) next[id] = (next[id] || 0) + d[id]
+    cache.set(cur, next)
+    prev = next
+  }
+  return cache.get(k)!
+}
 /** Account balances at the end of a given day (today by default). */
 export function balances(s: State, upTo = TODAY) {
   return memo(s, 'bal|' + upTo, () => {
-    const b: Record<string, number> = {}
-    s.accounts.forEach((a) => (b[a.id] = +a.start || 0))
-    for (const t of itemsIn(s, '1900-01-01', upTo)) {
-      if (!t.paid) continue
-      const a = +t.amount
-      if (t.type === 'income') b[t.account] = (b[t.account] || 0) + a
-      else {
-        b[t.account] = (b[t.account] || 0) - a
-        if (t.type === 'savings' && t.to) b[t.to] = (b[t.to] || 0) + a
-      }
-    }
-    for (const t of s.transfers ?? []) if (t.date <= upTo) { b[t.from] = (b[t.from] || 0) - t.amount; b[t.to] = (b[t.to] || 0) + t.amount }
-    return b
+    const k = upTo.slice(0, 7)
+    const b = { ...monthEndBalances(s, addMonths(k, -1)) }
+    const d = deltas(s, k + '-01', upTo)
+    for (const id in d) b[id] = (b[id] || 0) + d[id]
+    const out: Record<string, number> = {}
+    s.accounts.forEach((a) => (out[a.id] = 0))
+    for (const id in b) out[id] = b[id] / 100
+    return out
   })
 }
 /** Money that came into and went out of one account between two dates (transfers included). */
@@ -173,7 +237,10 @@ export function accountFlows(s: State, id: string, from: string, to: string) {
 /** Possible double entries: same amount and category within a day of each other. */
 export function findDuplicate(s: State, t: { id?: string; date: string; amount: number; cat: string }) {
   const lo = iso(addDays(parse(t.date), -1)), hi = iso(addDays(parse(t.date), 1))
-  return s.tx.find((x) => x.id !== t.id && x.cat === t.cat && Math.abs(x.amount - t.amount) < 0.005 && x.date >= lo && x.date <= hi) ?? null
+  const idx = txIndex(s).byMonth
+  for (const k of new Set([lo.slice(0, 7), t.date.slice(0, 7), hi.slice(0, 7)]))
+    for (const x of idx.get(k) ?? []) if (x.id !== t.id && x.cat === t.cat && cents(x.amount) === cents(t.amount) && x.date >= lo && x.date <= hi) return x
+  return null
 }
 export function duplicateIds(s: State) {
   return memo(s, 'dups', () => {
@@ -369,4 +436,33 @@ export function yearStats(s: State, y: number) {
       byCat: ms.reduce((acc, m) => { for (const [c, v] of Object.entries(m.byCat)) acc[c] = (acc[c] || 0) + v; return acc }, {} as Record<string, number>),
     }
   })
+}
+
+/* ---------- search ---------- */
+const searchCache = new WeakMap<Item, string>()
+/** Lower-case text an entry can be found by: description, category, sub-category, amount and person. */
+export function searchText(s: State, t: Item) {
+  let v = searchCache.get(t)
+  if (v == null) {
+    v = `${t.note} ${catName(s, t.cat)} ${t.sub ?? ''} ${t.amount} ${t.amount.toFixed(2)} ${t.person ?? ''}`.toLowerCase()
+    searchCache.set(t, v)
+  }
+  return v
+}
+/** The first month that has any data, for "all time" views. */
+export const earliestMonth = (s: State) => firstMonth(s)
+
+/* ---------- savings goals ---------- */
+export type GoalState = 'done' | 'late' | 'behind' | 'on-track' | 'new'
+/** Where a goal stands, based on its target date and what was added over the last three months. */
+export function goalStatus(g: { target: number; saved: number; due: string; history?: { date: string; amount: number }[] }) {
+  const remaining = Math.max(0, g.target - g.saved)
+  const monthsLeft = monthsUntil(g.due)
+  const need = remaining / monthsLeft
+  const since = iso(addDays(NOW, -91))
+  const recent = sum((g.history ?? []).filter((h) => h.date >= since).map((h) => h.amount))
+  const pace = recent / 3
+  const state: GoalState = remaining <= 0 ? 'done' : g.due < TODAY ? 'late' : !g.history?.length ? 'new' : pace >= need * 0.9 ? 'on-track' : 'behind'
+  const eta = pace > 0 && remaining > 0 ? addMonthsDate(NOW, Math.ceil(remaining / pace)) : null
+  return { state, remaining, need, pace, eta, monthsLeft }
 }

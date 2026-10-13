@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx'
 import { accountName, balances, catName, itemsIn, perMonth, planFor, simulate, spendCats, sum, FREQ, yearStats } from './calc'
 import { monthName, TODAY } from './dates'
 import type { State } from './types'
@@ -36,7 +35,8 @@ export async function saveFile(filename: string, data: Blob | string): Promise<'
 }
 
 /** A workbook that opens in Excel and Google Sheets: one sheet per part of Tally. */
-export function workbook(s: State, year: number) {
+export async function workbook(s: State, year: number) {
+  const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
   const add = (name: string, rows: (string | number)[][], widths?: number[]) => {
     const ws = XLSX.utils.aoa_to_sheet(rows)

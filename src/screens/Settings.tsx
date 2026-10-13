@@ -1,8 +1,9 @@
 import { ChevronRight, Compass, Database, FileSpreadsheet, Moon, Plus, RotateCcw, Sparkles, Sun, SunMoon, Trash2, Upload, Download } from 'lucide-react'
 import { saveFile, workbook } from '../lib/files'
 import { THIS_MONTH } from '../lib/dates'
-import { useState } from 'react'
-import { Button, Card, CardHead, CatIcon, Field, Segmented } from '../components/ui'
+import { useEffect, useState } from 'react'
+import { storageEstimate } from '../lib/storage'
+import { Button, Card, CardHead, CatIcon, Field, Segmented, Switch } from '../components/ui'
 import { worthNow } from '../lib/calc'
 import { CURRENCIES, money0 } from '../lib/money'
 import { emptyState, sampleState, seedHistory } from '../lib/sample'
@@ -11,6 +12,8 @@ import type { Settings as S } from '../lib/types'
 
 export default function Settings() {
   const s = useData()
+  const [est, setEst] = useState<{ used: number; quota: number } | null>(null)
+  useEffect(() => { storageEstimate().then(setEst) }, [s.tx.length])
   const open = useUI((u) => u.open)
   const go = useUI((u) => u.go)
   const [people, setPeople] = useState(s.people.join(', '))
@@ -31,6 +34,10 @@ export default function Settings() {
           <p className="mb-2 text-[13.5px] font-semibold text-ink2">Look</p>
           <Segmented label="Theme" value={s.settings.theme} onChange={(v) => set((x) => { x.theme = v })}
             options={[['system', <><SunMoon size={15} />Match device</>], ['light', <><Sun size={15} />Light</>], ['dark', <><Moon size={15} />Dark</>]]} />
+          <div className="mt-4 flex items-start justify-between gap-4 rounded-2xl border border-line p-4">
+            <div><p className="font-semibold text-ink">Reduced effects</p><p className="text-[13.5px] text-ink2">Turns off 3D scenes, card tilt, floating coins and confetti. Numbers and actions stay the same. Tally also does this automatically if your device asks for less motion.</p></div>
+            <Switch checked={s.settings.effects === 'reduced'} label="Reduced effects" onChange={(v) => set((x) => { x.effects = v ? 'reduced' : 'full' })} />
+          </div>
         </div>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <Field label="Week starts on"><select className="field" value={s.settings.weekStart} onChange={(e) => set((x) => { x.weekStart = +e.target.value })}>{[1, 0, 6].map((v) => <option key={v} value={v}>{new Date(2024, 0, 7 + v).toLocaleDateString(undefined, { weekday: 'long' })}</option>)}</select></Field>
@@ -72,8 +79,12 @@ export default function Settings() {
 
       <Card i={3} className="col-span-12 lg:col-span-6">
         <CardHead title="Your data" sub="Everything stays in this browser on this device. Nothing is sent anywhere." />
+        <div className="mb-4 rounded-2xl bg-surface2 p-3.5 text-[13.5px] leading-relaxed text-ink2">
+          <p>Tally keeps your data in this browser's own storage. It is <b className="text-ink">private but not encrypted</b>, and it can be lost if you clear your browsing data, use a private window, or lose this device. Download a full backup now and then.</p>
+          <p className="mt-1.5 font-semibold text-ink">{s.settings.lastBackup ? `Last backup: ${new Date(s.settings.lastBackup).toLocaleDateString()}` : 'No backup downloaded yet.'}{est ? ` · Using ${(est.used / 1048576).toFixed(1)} MB of storage` : ''}</p>
+        </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="primary" onClick={async () => { const r = await saveFile(`tally-${THIS_MONTH.slice(0, 4)}.xlsx`, workbook(s, +THIS_MONTH.slice(0, 4))); toast(r === 'saved' ? 'Your Excel workbook is ready' : r === 'declined' ? 'Download cancelled' : 'Could not save the file here') }}><FileSpreadsheet size={16} />Download Excel workbook</Button>
+          <Button variant="primary" onClick={async () => { const r = await saveFile(`tally-${THIS_MONTH.slice(0, 4)}.xlsx`, await workbook(s, +THIS_MONTH.slice(0, 4))); toast(r === 'saved' ? 'Your Excel workbook is ready' : r === 'declined' ? 'Download cancelled' : 'Could not save the file here') }}><FileSpreadsheet size={16} />Download Excel workbook</Button>
           <Button onClick={() => open({ type: 'backup' })}><Download size={16} />Back up or export</Button>
           <Button onClick={() => { go('home'); setTimeout(() => useUI.getState().setTour(true), 300) }}><Compass size={16} />Take the tour again</Button>
           <Button onClick={() => open({ type: 'csv' })}><Upload size={16} />Import from my bank</Button>

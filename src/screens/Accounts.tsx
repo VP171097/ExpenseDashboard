@@ -1,11 +1,13 @@
 import { motion } from 'framer-motion'
-import { ArrowRightLeft, CreditCard, Landmark, Pencil, PiggyBank, Plus, Trash2, Wallet } from 'lucide-react'
+import { ArrowRight, ArrowRightLeft, CreditCard, Landmark, Pencil, PiggyBank, Plus, Trash2, Wallet } from 'lucide-react'
 import { Donut, Spark } from '../components/charts'
 import { Button, Card, CardHead, Chip, Empty, Explain, Num } from '../components/ui'
 import { accountFlows, balances, sum } from '../lib/calc'
 import { addMonths, fmtDate, monthEnd, THIS_MONTH, TODAY } from '../lib/dates'
 import { money, money0 } from '../lib/money'
-import { toast, update, useData, useUI } from '../lib/store'
+import { EMPTY_FILTER, toast, update, useData, useUI } from '../lib/store'
+import { Pager, usePaged } from '../components/Pager'
+import { useMemo } from 'react'
 import type { Account } from '../lib/types'
 
 const TYPE_ICON = { everyday: Wallet, savings: PiggyBank, card: CreditCard, cash: Wallet, investment: Landmark }
@@ -20,7 +22,9 @@ export default function Accounts() {
   const total = sum(s.accounts.map((a) => bal[a.id] || 0))
   const owedOnCards = sum(s.accounts.filter((a) => (bal[a.id] || 0) < 0).map((a) => -(bal[a.id] || 0)))
   const months = Array.from({ length: 12 }, (_, i) => addMonths(THIS_MONTH, i - 11))
-  const recent = [...s.transfers].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 8)
+  const all = useMemo(() => [...s.transfers].sort((a, b) => b.date.localeCompare(a.date)), [s.transfers])
+  const pg = usePaged(all, 'transfers', 10)
+  const recent = pg.rows
 
   return (
     <div className="grid grid-cols-12 gap-4 lg:gap-5">
@@ -60,7 +64,9 @@ export default function Accounts() {
               </div>
             ))}
           </div>
-        ) : <Empty icon={<ArrowRightLeft />} title="No transfers yet" text="When you move money to savings or pay off a card, record it here so every balance stays right." />}
+        ) : null}
+        <Pager {...pg} noun="transfers" />
+        {recent.length ? null : <Empty icon={<ArrowRightLeft />} title="No transfers yet" text="When you move money to savings or pay off a card, record it here so every balance stays right." />}
       </Card>
     </div>
   )
@@ -68,7 +74,7 @@ export default function Accounts() {
 
 function AccountCard({ a, i, color, months }: { a: Account; i: number; color: string; months: string[] }) {
   const s = useData()
-  const open = useUI((u) => u.open)
+  const { open, setFilter, go } = useUI()
   const I = TYPE_ICON[a.type] ?? Wallet
   const now = balances(s)[a.id] || 0
   const month = accountFlows(s, a.id, THIS_MONTH + '-01', TODAY)
@@ -97,6 +103,7 @@ function AccountCard({ a, i, color, months }: { a: Account; i: number; color: st
         <Button variant="primary" onClick={() => open({ type: 'transfer', from: everyday.id, to: a.id })}><CreditCard size={16} />Pay off card</Button>
       )}
       {isCard && now >= 0 && <Chip tone="good">Nothing owed</Chip>}
+      <Button variant="plain" onClick={() => { setFilter({ ...EMPTY_FILTER, account: a.id, scope: 'all' }); go('activity') }}>See all activity <ArrowRight size={15} /></Button>
     </motion.article>
   )
 }

@@ -1,9 +1,9 @@
-import { motion } from 'framer-motion'
-import { Flame, Pencil, Plus, Trophy } from 'lucide-react'
-import { useState } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { AlertTriangle, CheckCircle2, Flame, Pencil, Plus, Trophy } from 'lucide-react'
+import { useRef, useState } from 'react'
 import { Jar } from '../components/bits'
-import { Button, Card, CardHead, celebrate, Chip, Explain, Num } from '../components/ui'
-import { monthStats, monthsUntil, uid } from '../lib/calc'
+import { Button, Card, CardHead, celebrate, Chip, effectsOn, Explain, Num, Tilt } from '../components/ui'
+import { cents, goalStatus, monthStats, uid, type GoalState } from '../lib/calc'
 import { daysIn, fmtDate, monthName, NOW, pad, THIS_MONTH, TODAY } from '../lib/dates'
 import { money0 } from '../lib/money'
 import { toast, update, useData, useUI } from '../lib/store'
@@ -28,57 +28,87 @@ export default function Goals() {
   )
 }
 
+const STATE: Record<GoalState, { tone: 'good' | 'warn' | 'bad' | 'accent' | 'plain'; word: string }> = {
+  done: { tone: 'good', word: 'Goal reached' }, late: { tone: 'bad', word: 'Target date has passed' },
+  behind: { tone: 'warn', word: 'A little behind' }, 'on-track': { tone: 'good', word: 'On track' }, new: { tone: 'accent', word: 'Just getting started' },
+}
+
 function GoalCard({ g, i, color }: { g: Goal; i: number; color: string }) {
   const open = useUI((u) => u.open)
-  const s = useData()
   const [amt, setAmt] = useState('')
+  const [burst, setBurst] = useState<{ n: number; dx: number; dy: number } | null>(null)
+  const card = useRef<HTMLElement>(null), jar = useRef<HTMLDivElement>(null), btn = useRef<HTMLButtonElement>(null)
+  const busy = useRef(false)
   const p = g.target ? g.saved / g.target : 0
-  const done = g.saved >= g.target
-  const months = monthsUntil(g.due)
-  const need = Math.max(0, (g.target - g.saved) / months)
-  const late = !done && g.due < TODAY
+  const st = goalStatus(g)
   const add = (e: React.FormEvent) => {
     e.preventDefault()
-    const a = parseFloat(amt)
-    if (!(a > 0)) return
+    const a = Math.round(parseFloat(amt) * 100) / 100
+    if (!(a > 0) || busy.current) return
+    busy.current = true
     const willFinish = g.saved + a >= g.target
-    update((d) => {
+    const prev = update((d) => {
       const x = d.goals.find((y) => y.id === g.id)!
-      x.saved = Math.round((x.saved + a) * 100) / 100
-      d.tx.push({ id: uid(), date: TODAY, type: 'savings', cat: d.categories.find((c) => c.kind === 'savings')?.id ?? 'savings', amount: a, account: 'chk', to: d.accounts.find((c) => c.type === 'savings')?.id, person: d.people[0], note: `For ${g.name}` })
+      x.saved = (cents(x.saved) + cents(a)) / 100
+      x.history = [...(x.history ?? []), { date: TODAY, amount: a }]
+      d.tx.push({ id: uid(), date: TODAY, type: 'savings', cat: d.categories.find((c) => c.kind === 'savings')?.id ?? 'savings', amount: a, account: d.accounts.find((c) => c.type === 'everyday')?.id ?? d.accounts[0].id, to: d.accounts.find((c) => c.type === 'savings')?.id, person: d.people[0], note: `For ${g.name}` })
     })
     setAmt('')
-    const r = (document.getElementById(`goal-${g.id}`) as HTMLElement)?.getBoundingClientRect()
-    celebrate(r ? { clientX: r.left + r.width / 2, clientY: r.top + 60 } : null, willFinish)
-    toast(willFinish ? `You did it! ${g.name} is fully saved.` : `Added ${money0(a)} to ${g.name}`, null, 'good')
+    // coins fly from the button into the jar
+    const c = card.current?.getBoundingClientRect(), j = jar.current?.getBoundingClientRect(), b = btn.current?.getBoundingClientRect()
+    if (c && j && b && effectsOn()) setBurst({ n: Date.now(), dx: j.left + j.width / 2 - (b.left + b.width / 2), dy: j.top + j.height / 2 - (b.top + b.height / 2) })
+    if (willFinish) { const r = c; celebrate(r ? { clientX: r.left + r.width / 2, clientY: r.top + 60 } : null, true) }
+    toast(willFinish ? `You did it! ${g.name} is fully saved.` : `Added ${money0(a)} to ${g.name}`, prev, 'good')
+    setTimeout(() => { busy.current = false }, 300)
   }
+  const recent = [...(g.history ?? [])].reverse().slice(0, 3)
   return (
-    <motion.article id={`goal-${g.id}`} className="card col-span-12 flex flex-col gap-4 p-5 sm:col-span-6 xl:col-span-4"
+    <motion.article ref={card} id={`goal-${g.id}`} className="card relative col-span-12 flex flex-col gap-4 p-5 sm:col-span-6 xl:col-span-4"
       initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.06 }}>
       <div className="flex items-start gap-4">
-        <Jar value={p} color={color} size={84} />
+        <Tilt max={8}><div ref={jar}><Jar value={p} color={color} size={88} done={st.state === 'done'} /></div></Tilt>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <h3 className="text-[19px] font-bold leading-tight">{g.name}</h3>
             <button type="button" onClick={() => open({ type: 'goal', id: g.id })} className="-mr-1 -mt-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-ink" aria-label={`Edit ${g.name}`}><Pencil size={15} /></button>
           </div>
           <p className="mt-1 font-display text-[30px] font-bold leading-none"><Num value={g.saved} /></p>
-          <p className="mt-1 text-[13.5px] text-ink2">saved of {money0(g.target)} · {Math.round(p * 100)}%</p>
-          <div className="mt-2">
-            {done ? <Chip tone="good"><Trophy size={13} />Goal reached</Chip>
-              : late ? <Chip tone="bad">Target date has passed</Chip>
-                : <Chip tone="accent">Put aside {money0(need)} a month</Chip>}
-          </div>
+          <p className="mt-1 text-[13.5px] text-ink2">saved of {money0(g.target)} · <b className="text-ink">{Math.round(p * 100)}%</b></p>
+          <div className="mt-2"><Chip tone={STATE[st.state].tone}>{st.state === 'done' ? <Trophy size={13} /> : st.state === 'behind' || st.state === 'late' ? <AlertTriangle size={13} /> : <CheckCircle2 size={13} />}{STATE[st.state].word}</Chip></div>
         </div>
       </div>
-      <p className="text-[13.5px] text-ink2">{done ? 'Time to enjoy it, or set a new goal.' : `${money0(g.target - g.saved)} to go by ${fmtDate(g.due, { month: 'long', year: 'numeric' })} (${months} month${months === 1 ? '' : 's'}).`}</p>
-      {!done && (
+      {st.state !== 'done' && (
+        <div className="grid grid-cols-2 gap-2 text-[13px]">
+          <div className="rounded-xl bg-surface2 p-2.5"><p className="text-muted">Left to save</p><b className="tnum text-[15px]">{money0(st.remaining)}</b></div>
+          <div className="rounded-xl bg-surface2 p-2.5"><p className="text-muted">Needed a month</p><b className="tnum text-[15px]">{money0(st.need)}</b></div>
+        </div>
+      )}
+      <p className="text-[13.5px] leading-relaxed text-ink2">
+        {st.state === 'done' ? 'Time to enjoy it, or set a new goal.'
+          : st.state === 'late' ? `The target date (${fmtDate(g.due, { month: 'long', year: 'numeric' })}) has passed. Pick a new date to get fresh advice.`
+            : <>Target {fmtDate(g.due, { month: 'long', year: 'numeric' })}. {st.eta ? <>At your recent pace of {money0(st.pace)} a month you'd finish around <b className="text-ink">{st.eta.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</b>.</> : <>Put aside {money0(st.need)} a month to get there in {st.monthsLeft} month{st.monthsLeft === 1 ? '' : 's'}.</>}</>}
+      </p>
+      {recent.length > 0 && (
+        <ul className="flex flex-col gap-1 text-[13px]" aria-label="Recent contributions">
+          {recent.map((h, n) => <li key={n} className="flex justify-between text-ink2"><span>{fmtDate(h.date)}</span><b className="tnum text-good">+{money0(h.amount)}</b></li>)}
+        </ul>
+      )}
+      {st.state !== 'done' && (
         <form onSubmit={add} className="mt-auto flex gap-2">
           <input className="field" type="number" min="0" step="any" inputMode="decimal" placeholder="Amount" value={amt} onChange={(e) => setAmt(e.target.value)} aria-label={`Amount to add to ${g.name}`} />
-          <Button type="submit" variant="primary">Add money</Button>
+          <Button type="submit" variant="primary"><span ref={btn as never}>Add money</span></Button>
         </form>
       )}
-      {s.sample && i === 0 && !done && <p className="-mt-2 text-[12px] text-muted">Adding money also records it as "put aside" in your activity.</p>}
+      <AnimatePresence>
+        {burst && Array.from({ length: 6 }, (_, n) => (
+          <motion.span key={`${burst.n}-${n}`} aria-hidden className="pointer-events-none absolute bottom-7 right-16 z-10 h-4 w-4 rounded-full"
+            style={{ background: 'radial-gradient(circle at 35% 35%, #ffe6a8, var(--warn) 70%)', boxShadow: '0 2px 6px rgba(0,0,0,.25)' }}
+            initial={{ x: (n - 2.5) * 6, y: 0, opacity: 0, scale: 0.6 }}
+            animate={{ x: burst.dx + (n - 2.5) * 3, y: [0, burst.dy - 40, burst.dy], opacity: [0, 1, 1, 0], scale: [0.6, 1, 0.5] }}
+            transition={{ duration: 0.9, delay: n * 0.07, ease: 'easeInOut' }}
+            onAnimationComplete={() => { if (n === 5) setBurst(null) }} />
+        ))}
+      </AnimatePresence>
     </motion.article>
   )
 }

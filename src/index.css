@@ -4,61 +4,78 @@
 
 /* Layout: pine "money book" sidebar (bottom tab bar on phones) beside a cool, airy workspace of soft cards. */
 :root {
-  --bg: #eef2f5; --surface: #ffffff; --surface2: #f4f7f9; --ink: #10202a; --ink2: #475569; --muted: #6f7b8b;
-  --line: #e2e7ec; --line2: #cbd3dc;
-  --accent: #0e7a64; --accent-ink: #ffffff; --accent-soft: #daf2ea;
-  --cover: #0b3b33; --cover-ink: #e7f4f0; --cover-muted: #93b9b0; --cover-hi: #155247;
-  --good: #0b7a32; --good-soft: #def4e5; --warn: #8f6200; --warn-soft: #fbf0d1; --bad: #c02f2f; --bad-soft: #fbe5e5;
-  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948; --sother: #9aa3ad;
-  --hero-a: #0b3b33; --hero-b: #13695a; --hero-ink: #f1fbf8; --hero-muted: #b5d8cf;
-  --shadow: 0 1px 2px rgba(16, 32, 42, .05), 0 8px 24px rgba(16, 32, 42, .06);
-  --shadow-pop: 0 20px 60px rgba(8, 20, 28, .22);
-  --overlay: rgba(8, 18, 24, .45);
-  --f-display: "Bricolage Grotesque", "Avenir Next", "Segoe UI", system-ui, sans-serif;
-  --f-body: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --bg: #F5F4FA; --surface: #FFFFFF; --surface2: #F1EFF8; --ink: #19192B; --ink2: #686980; --muted: #7D7F98;
+  --line: #E7E4F2; --line2: #D4D0E6;
+  --accent: #7565EA; --accent-ink: #FFFFFF; --accent-soft: #ECE9FD;
+  --cover: #14173A; --cover-ink: #F3F2FF; --cover-muted: #A5A8D0; --cover-hi: #262C63;
+  --good: #168D70; --good-soft: #DFF3ED; --warn: #B97918; --warn-soft: #FBF0DC; --bad: #CF3F55; --bad-soft: #FCE7EB;
+  --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a; --s4: #eda100; --s5: #e87ba4; --s6: #008300; --s7: #6250d6; --s8: #e34948; --sother: #9a9cb3;
+  --hero-a: #1E1A55; --hero-b: #6A58E6; --hero-ink: #FFFFFF; --hero-muted: #D3CEFF;
+  --glass: rgba(255, 255, 255, .78); --glass-edge: rgba(255, 255, 255, .9); --glow: rgba(117, 101, 234, .16);
+  --shadow: 0 1px 2px rgba(25, 25, 43, .04), 0 10px 30px -8px rgba(60, 50, 140, .14);
+  --shadow-pop: 0 30px 70px -10px rgba(30, 24, 90, .35);
+  --overlay: rgba(14, 12, 40, .45);
+  --f-display: "Manrope", "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  --f-body: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --ease-out: cubic-bezier(.16, 1, .3, 1);
+  --dur-fast: .15s; --dur: .3s; --dur-slow: .6s;
+  --radius: 22px; --radius-sm: 14px;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0c1115; --surface: #141b21; --surface2: #1a222a; --ink: #e8eef2; --ink2: #aab5c0; --muted: #7f8b97;
-    --line: #232c35; --line2: #33404c;
-    --accent: #4fc9b0; --accent-ink: #04201a; --accent-soft: #123630;
-    --cover: #08201c; --cover-ink: #e7f4f0; --cover-muted: #7ea69c; --cover-hi: #113a33;
-    --good: #45d277; --good-soft: #11301c; --warn: #f2b632; --warn-soft: #332709; --bad: #ff6f6f; --bad-soft: #3a1616;
-    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767; --sother: #5d6773;
-    --hero-a: #0a2a25; --hero-b: #0f4d42; --hero-ink: #effaf7; --hero-muted: #9fc9be;
-    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px rgba(0, 0, 0, .25);
-    --shadow-pop: 0 24px 70px rgba(0, 0, 0, .55);
-    --overlay: rgba(0, 0, 0, .6);
+    --bg: #0D1224; --surface: #191F36; --surface2: #212844; --ink: #F7F8FF; --ink2: #A8B0CC; --muted: #7F88A8;
+    --line: #262D4B; --line2: #353D61;
+    --accent: #9185FF; --accent-ink: #0D1224; --accent-soft: #2A2B5E;
+    --cover: #0A0E1E; --cover-ink: #F7F8FF; --cover-muted: #8F96BB; --cover-hi: #1C2248;
+    --good: #4FD5B2; --good-soft: #10302D; --warn: #F4B860; --warn-soft: #3A2D15; --bad: #FF7B8C; --bad-soft: #3B1724;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767; --sother: #5d6480;
+    --hero-a: #1B1752; --hero-b: #5847D6; --hero-ink: #F7F8FF; --hero-muted: #C4BEFF;
+    --glass: rgba(25, 31, 54, .74); --glass-edge: rgba(255, 255, 255, .07); --glow: rgba(145, 133, 255, .14);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 16px 40px -12px rgba(0, 0, 0, .55);
+    --shadow-pop: 0 30px 80px -10px rgba(0, 0, 0, .7);
+    --overlay: rgba(3, 5, 14, .65);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0c1115; --surface: #141b21; --surface2: #1a222a; --ink: #e8eef2; --ink2: #aab5c0; --muted: #7f8b97;
-  --line: #232c35; --line2: #33404c;
-  --accent: #4fc9b0; --accent-ink: #04201a; --accent-soft: #123630;
-  --cover: #08201c; --cover-ink: #e7f4f0; --cover-muted: #7ea69c; --cover-hi: #113a33;
-  --good: #45d277; --good-soft: #11301c; --warn: #f2b632; --warn-soft: #332709; --bad: #ff6f6f; --bad-soft: #3a1616;
-  --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767; --sother: #5d6773;
-  --hero-a: #0a2a25; --hero-b: #0f4d42; --hero-ink: #effaf7; --hero-muted: #9fc9be;
-  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px rgba(0, 0, 0, .25);
-  --shadow-pop: 0 24px 70px rgba(0, 0, 0, .55);
-  --overlay: rgba(0, 0, 0, .6);
-  color-scheme: dark;
+    --bg: #0D1224; --surface: #191F36; --surface2: #212844; --ink: #F7F8FF; --ink2: #A8B0CC; --muted: #7F88A8;
+    --line: #262D4B; --line2: #353D61;
+    --accent: #9185FF; --accent-ink: #0D1224; --accent-soft: #2A2B5E;
+    --cover: #0A0E1E; --cover-ink: #F7F8FF; --cover-muted: #8F96BB; --cover-hi: #1C2248;
+    --good: #4FD5B2; --good-soft: #10302D; --warn: #F4B860; --warn-soft: #3A2D15; --bad: #FF7B8C; --bad-soft: #3B1724;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500; --s5: #d55181; --s6: #008300; --s7: #9085e9; --s8: #e66767; --sother: #5d6480;
+    --hero-a: #1B1752; --hero-b: #5847D6; --hero-ink: #F7F8FF; --hero-muted: #C4BEFF;
+    --glass: rgba(25, 31, 54, .74); --glass-edge: rgba(255, 255, 255, .07); --glow: rgba(145, 133, 255, .14);
+    --shadow: 0 1px 2px rgba(0, 0, 0, .35), 0 16px 40px -12px rgba(0, 0, 0, .55);
+    --shadow-pop: 0 30px 80px -10px rgba(0, 0, 0, .7);
+    --overlay: rgba(3, 5, 14, .65);
+    color-scheme: dark;
 }
 
 html, body { min-height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 15.5px/1.5 var(--f-body); -webkit-font-smoothing: antialiased; }
-h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; letter-spacing: -0.015em; }
+body { margin: 0; color: var(--ink); font: 15px/1.55 var(--f-body); -webkit-font-smoothing: antialiased; font-feature-settings: "cv11", "ss01";
+  background: radial-gradient(60rem 40rem at 85% -10%, var(--glow), transparent 60%), radial-gradient(50rem 36rem at -10% 30%, var(--glow), transparent 60%), var(--bg);
+  background-attachment: fixed; }
+h1, h2, h3 { font-family: var(--f-display); text-wrap: balance; letter-spacing: -0.02em; }
+/* figures line up and never jump while counting */
+.tnum, .font-display { font-variant-numeric: tabular-nums; }
+/* smooth colour change when switching theme */
+html.theme-anim, html.theme-anim * { transition: background-color .35s ease, border-color .35s ease, color .35s ease, fill .35s ease !important; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 8px; }
 [hidden] { display: none !important; }
 .tnum { font-variant-numeric: tabular-nums; }
 
 @layer components {
-  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 20px; box-shadow: var(--shadow); min-width: 0; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow); min-width: 0; position: relative; }
+  /* frosted glass on devices with a fine pointer; solid surfaces on phones keep scrolling smooth */
+  @media (hover: hover) and (pointer: fine) {
+    .card { background: var(--glass); backdrop-filter: blur(16px) saturate(140%); -webkit-backdrop-filter: blur(16px) saturate(140%); border-color: color-mix(in srgb, var(--line) 70%, var(--glass-edge)); }
+  }
+  .card::before { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: linear-gradient(180deg, var(--glass-edge), transparent 30%); opacity: .5; mask: linear-gradient(#000, #000) content-box, linear-gradient(#000, #000); -webkit-mask-composite: xor; mask-composite: exclude; padding: 1px; }
   .label { font-size: 11.5px; text-transform: uppercase; letter-spacing: .08em; font-weight: 700; color: var(--muted); }
   .field { width: 100%; min-width: 0; background: var(--surface); border: 1px solid var(--line2); border-radius: 12px; padding: 10px 12px; color: var(--ink); }
   .field:focus { outline: 2px solid color-mix(in srgb, var(--accent) 55%, transparent); outline-offset: 0; border-color: var(--accent); }
-  .hero { background: radial-gradient(120% 140% at 100% 0%, var(--hero-b) 0%, var(--hero-a) 60%); color: var(--hero-ink); }
+  .hero { background: radial-gradient(80% 120% at 100% 0%, var(--hero-b) 0%, transparent 70%), radial-gradient(60% 80% at 0% 100%, color-mix(in srgb, var(--hero-b) 45%, transparent), transparent 70%), var(--hero-a); color: var(--hero-ink); box-shadow: 0 30px 60px -20px color-mix(in srgb, var(--hero-b) 55%, transparent), inset 0 1px 0 rgba(255,255,255,.12); }
 }
 
 /* range slider */
@@ -74,6 +91,9 @@ input[type=range].slider:active::-webkit-slider-thumb { transform: scale(1.15); 
 .wave { animation: wave 3.2s linear infinite; }
 .wave.slow { animation-duration: 5s; opacity: .55; }
 
+@keyframes bubble { 0% { transform: translateY(0); opacity: 0 } 15% { opacity: .55 } 100% { transform: translateY(var(--rise, -50px)); opacity: 0 } }
+.bubble { animation: bubble 3.6s ease-in infinite; transform-box: fill-box; }
+
 /* shimmering money bar */
 @keyframes sheen { from { transform: translateX(-100%) } to { transform: translateX(200%) } }
 .sheen::after { content: ""; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, rgba(255,255,255,.25), transparent); animation: sheen 2.8s ease-in-out 1s 1; }
@@ -82,6 +102,7 @@ input[type=range].slider:active::-webkit-slider-thumb { transform: scale(1.15); 
 .no-scrollbar { scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 
+[data-effects="reduced"] *, [data-effects="reduced"] *::before, [data-effects="reduced"] *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }

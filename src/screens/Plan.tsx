@@ -1,5 +1,5 @@
-import { motion } from 'framer-motion'
-import { Banknote, Minus, Pencil, Plus, Wand2 } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Banknote, Check, Minus, Pencil, Plus, Wand2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { statusOf } from '../components/bits'
 import { Bar, Button, Card, CardHead, CatIcon, Chip, Explain, Num, Slider, Switch } from '../components/ui'
@@ -104,12 +104,14 @@ function Pot({ c, i, spent, plan, usual, subs }: { c: Category; i: number; spent
   const open = useUI((u) => u.open)
   const rollover = useData().settings.rollover
   const [val, setVal] = useState(c.plan)
+  const [saved, setSaved] = useState(0)
+  useEffect(() => { if (!saved) return; const h = setTimeout(() => setSaved(0), 1400); return () => clearTimeout(h) }, [saved])
   const t = useRef<number>()
   useEffect(() => setVal(c.plan), [c.plan])
   const commit = (v: number) => {
     setVal(v)
     clearTimeout(t.current)
-    t.current = window.setTimeout(() => update((d) => { const x = d.categories.find((y) => y.id === c.id); if (x) x.plan = Math.max(0, Math.round(v)) }), 300)
+    t.current = window.setTimeout(() => { update((d) => { const x = d.categories.find((y) => y.id === c.id); if (x) x.plan = Math.max(0, Math.round(v)) }); setSaved(Date.now()) }, 300)
   }
   const effective = plan + (val - c.plan)
   const st = statusOf(spent, effective)
@@ -142,7 +144,7 @@ function Pot({ c, i, spent, plan, usual, subs }: { c: Category; i: number; spent
       )}
       <div className="rounded-2xl bg-surface2 p-3">
         <div className="flex items-center justify-between gap-2 text-[13.5px]">
-          <span className="font-semibold">Monthly plan</span>
+          <span className="flex items-center gap-1.5 font-semibold">Monthly plan<AnimatePresence>{saved > 0 && <motion.span key={saved} initial={{ opacity: 0, scale: 0.6 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }} className="inline-flex items-center gap-0.5 text-[12px] text-good"><Check size={13} />Saved</motion.span>}</AnimatePresence></span>
           <span className="flex items-center gap-1">
             <button type="button" className="grid h-7 w-7 place-items-center rounded-lg border border-line2 bg-surface hover:border-accent" onClick={() => commit(Math.max(0, val - 10))} aria-label={`Lower ${c.name} plan`}><Minus size={14} /></button>
             <b className="tnum min-w-[64px] text-center text-[15px]">{money0(val)}</b>

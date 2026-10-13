@@ -1,9 +1,10 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { AlertTriangle, ArrowRight, Check, ChevronDown, Info, Lightbulb, PartyPopper } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { MonthBars, Spark, TimeChart } from '../components/charts'
+import { Donut, MonthBars, Spark, TimeChart } from '../components/charts'
+import { AllocationRing3D } from '../components/three'
 import { ItemRow, Jar, statusOf } from '../components/bits'
-import { Bar, Button, Card, CardHead, CatIcon, Chip, Empty, Explain, Num, Ring } from '../components/ui'
+import { Bar, Button, Card, CardHead, CatIcon, Chip, Empty, Explain, Num, Ring, Tilt } from '../components/ui'
 import { health, monthItems, yearStats, monthPicture, monthStats, planFor, spendCats, sum, tips, upcoming } from '../lib/calc'
 import { addMonths, daysIn, fmtDate, monthName, pad, TODAY } from '../lib/dates'
 import { money0, pct } from '../lib/money'
@@ -43,6 +44,7 @@ export default function Home() {
     .filter((x) => x.spent > 0 || x.plan > 0)
     .sort((a, b) => b.spent - a.spent)
   const [showAllCats, setShowAllCats] = useState(false)
+  const [how, setHow] = useState(false)
 
   const dim = daysIn(k)
   const pace = useMemo(() => {
@@ -60,9 +62,12 @@ export default function Home() {
   return (
     <div className="grid grid-cols-12 gap-4 lg:gap-5">
       {/* ---------- hero ---------- */}
-      <motion.section data-tour="safe" className="hero relative col-span-12 overflow-hidden rounded-[28px] p-6 shadow-card sm:p-8 xl:col-span-8"
+      <Tilt className="col-span-12 xl:col-span-8" max={2.5}>
+      <motion.section data-tour="safe" className="hero relative h-full overflow-hidden rounded-[28px] p-6 sm:p-8"
         initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}>
         <div aria-hidden className="pointer-events-none absolute -right-16 -top-24 h-72 w-72 rounded-full opacity-20" style={{ background: 'radial-gradient(circle, var(--hero-ink), transparent 65%)' }} />
+        <div className="relative grid items-center gap-4 md:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <div className="min-w-0">
         <p className="text-[15px]" style={{ color: 'var(--hero-muted)' }}>{greeting}{s.settings.name ? `, ${s.settings.name}` : ''}</p>
         <div className="mt-3 flex items-center gap-2 text-[13px] font-bold uppercase tracking-[.08em]" style={{ color: 'var(--hero-muted)' }}>
           Safe to spend {P.isCur ? 'this month' : `in ${monthName(k, false)}`}
@@ -80,6 +85,34 @@ export default function Home() {
               ? <>That's about <b>{money0(P.perDay)} a day</b> for the next {P.daysLeft} day{P.daysLeft === 1 ? '' : 's'}, after all your bills.</>
               : P.isFuture ? 'Based on the pay and bills you expect.' : `This is what was left over at the end of ${monthName(k)}.`}
         </p>
+        <button type="button" onClick={() => setHow((v) => !v)} aria-expanded={how} className="mt-3 inline-flex items-center gap-1 rounded-full bg-white/10 px-3 py-1 text-[13px] font-semibold hover:bg-white/15" style={{ color: 'var(--hero-ink)' }}>
+          How is this worked out? <motion.span animate={{ rotate: how ? 180 : 0 }}><ChevronDown size={14} /></motion.span>
+        </button>
+        <AnimatePresence initial={false}>
+          {how && (
+            <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+              <dl className="mt-3 max-w-md rounded-2xl bg-black/15 p-4 text-[14px] tnum">
+                {([
+                  ['Money coming in this month', P.moneyIn, `${money0(m.income)} arrived${m.expectedIn ? `, ${money0(m.expectedIn)} still expected` : ''}`],
+                  ['Already spent', -m.spent, 'everything paid out so far, bills included'],
+                  ['Put aside', -(m.saved + m.savingDue), `${money0(m.saved)} done${m.savingDue ? `, ${money0(m.savingDue)} planned` : ''}`],
+                  ['Bills still to pay', -(m.billsDue - m.savingDue), `${m.nDue - (m.savingDue ? 1 : 0) > 0 ? 'regular bills not ticked off yet' : 'none left'}`],
+                ] as [string, number, string][]).map(([l, v, sub]) => (
+                  <div key={l} className="flex items-baseline justify-between gap-3 py-1">
+                    <dt><span style={{ color: 'var(--hero-ink)' }}>{l}</span><span className="block text-[12px]" style={{ color: 'var(--hero-muted)' }}>{sub}</span></dt>
+                    <dd className="font-bold" style={{ color: 'var(--hero-ink)' }}>{v < 0 ? '−' : '+'}{money0(Math.abs(v))}</dd>
+                  </div>
+                ))}
+                <div className="mt-1 flex justify-between border-t border-white/20 pt-2 font-bold" style={{ color: 'var(--hero-ink)' }}><dt>Safe to spend</dt><dd>{money0(P.safe)}</dd></div>
+              </dl>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        </div>
+        <AllocationRing3D className="mx-auto hidden aspect-square w-full max-w-[260px] md:block"
+          segs={segs.map((x) => ({ value: Math.max(0, x.v), color: x.color, label: x.label }))}
+          fallback={<div className="grid h-full place-items-center"><Donut size={220} center={money0(P.safe)} sub="safe to spend" items={segs.filter((x) => x.v > 0).map((x) => ({ name: x.label, value: Math.round(x.v), color: x.color }))} /></div>} />
+        </div>
         <div className="mt-6">
           <div className="sheen relative flex h-4 overflow-hidden rounded-full bg-white/10" role="img" aria-label="How this month's money is split">
             {segs.filter((x) => x.v > 0).map((x, i) => (
@@ -97,6 +130,7 @@ export default function Home() {
           </div>
         </div>
       </motion.section>
+      </Tilt>
 
       {/* ---------- money health ---------- */}
       <Card i={1} tour="health" className="col-span-12 md:col-span-6 xl:col-span-4">

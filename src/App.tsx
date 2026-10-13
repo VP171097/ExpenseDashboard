@@ -1,28 +1,32 @@
-import { AnimatePresence, motion } from 'framer-motion'
+import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import {
-  Banknote, BarChart3, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X,
+  Banknote, BarChart3, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check,
 } from 'lucide-react'
-import { useEffect } from 'react'
+import { lazy, Suspense, useEffect, type ComponentType } from 'react'
 import Sheets from './components/Sheets'
 import { Button } from './components/ui'
 import { monthName, THIS_MONTH } from './lib/dates'
 import { setCurrency } from './lib/money'
 import { replaceData, update, useStore, useToasts, useUI, type View } from './lib/store'
-import Activity from './screens/Activity'
-import Bills from './screens/Bills'
-import Debts from './screens/Debts'
-import Goals from './screens/Goals'
 import Home from './screens/Home'
 import Onboarding from './screens/Onboarding'
-import Plan from './screens/Plan'
-import Settings from './screens/Settings'
-import Worth from './screens/Worth'
-import Accounts from './screens/Accounts'
-import Calendar from './screens/Calendar'
-import Household from './screens/Household'
-import Paycheck from './screens/Paycheck'
-import Year from './screens/Year'
 import Tour from './components/Tour'
+
+/* Home loads with the app; every other screen loads the first time it is opened. */
+const Activity = lazy(() => import('./screens/Activity'))
+const Bills = lazy(() => import('./screens/Bills'))
+const Debts = lazy(() => import('./screens/Debts'))
+const Goals = lazy(() => import('./screens/Goals'))
+const Plan = lazy(() => import('./screens/Plan'))
+const Settings = lazy(() => import('./screens/Settings'))
+const Worth = lazy(() => import('./screens/Worth'))
+const Accounts = lazy(() => import('./screens/Accounts'))
+const Calendar = lazy(() => import('./screens/Calendar'))
+const Household = lazy(() => import('./screens/Household'))
+const Paycheck = lazy(() => import('./screens/Paycheck'))
+const Year = lazy(() => import('./screens/Year'))
+// warm the other screens once the dashboard is showing
+const preload = () => ['Activity', 'Bills', 'Plan', 'Calendar', 'Goals'].forEach((n) => import(`./screens/${n}.tsx`).catch(() => {}))
 
 type NavItem = { id: View; label: string; icon: typeof HomeIcon; sub: string; month?: boolean; group: string }
 const NAV: NavItem[] = [
@@ -40,22 +44,35 @@ const NAV: NavItem[] = [
   { id: 'household', label: 'Household', icon: Users, sub: 'Who brings money in and who spends on what.', month: true, group: 'Together' },
   { id: 'settings', label: 'Settings', icon: Cog, sub: 'Names, currency, accounts and your data.', group: 'Together' },
 ]
-const SCREENS: Record<View, () => JSX.Element> = { home: Home, activity: Activity, calendar: Calendar, plan: Plan, paycheck: Paycheck, year: Year, bills: Bills, goals: Goals, debts: Debts, accounts: Accounts, worth: Worth, household: Household, settings: Settings }
+const SCREENS: Record<View, ComponentType> = { home: Home, activity: Activity, calendar: Calendar, plan: Plan, paycheck: Paycheck, year: Year, bills: Bills, goals: Goals, debts: Debts, accounts: Accounts, worth: Worth, household: Household, settings: Settings }
 
 export default function App() {
   const data = useStore((s) => s.data)
+  const hydrated = useStore((s) => s.hydrated)
   const theme = data?.settings.theme ?? 'system'
+  const effects = data?.settings.effects ?? 'full'
   useEffect(() => {
     const r = document.documentElement
+    r.classList.add('theme-anim')
     if (theme === 'system') delete r.dataset.theme
     else r.dataset.theme = theme
+    try { localStorage.setItem('tally.theme', theme) } catch { /* ignore */ }
+    const t = setTimeout(() => r.classList.remove('theme-anim'), 400)
+    return () => clearTimeout(t)
   }, [theme])
+  useEffect(() => {
+    const r = document.documentElement
+    if (effects === 'reduced') r.dataset.effects = 'reduced'
+    else delete r.dataset.effects
+    try { localStorage.setItem('tally.effects', effects) } catch { /* ignore */ }
+  }, [effects])
   if (data) setCurrency(data.settings.currency)
+  if (!hydrated) return <div className="grid min-h-screen place-items-center text-[15px] font-semibold text-muted">Loading your money…</div>
   return (
-    <>
+    <MotionConfig reducedMotion={effects === 'reduced' ? 'always' : 'user'}>
       {data ? <Shell /> : <Onboarding />}
       <Toaster />
-    </>
+    </MotionConfig>
   )
 }
 
@@ -81,16 +98,18 @@ function Shell() {
     window.addEventListener('keydown', h)
     return () => window.removeEventListener('keydown', h)
   }, [go, open])
+  useEffect(() => { const t = setTimeout(preload, 1500); return () => clearTimeout(t) }, [])
   const Screen = SCREENS[view]
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[252px_minmax(0,1fr)]">
       <Sidebar />
       <main className="min-w-0 px-4 pb-32 pt-5 sm:px-6 lg:px-10 lg:pb-14 lg:pt-8">
         <TopBar />
+        <SaveWarning />
         <AnimatePresence>{sample && <SampleBanner />}</AnimatePresence>
         <AnimatePresence mode="wait">
-          <motion.div key={view} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}>
-            <Screen />
+          <motion.div key={view} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, transition: { duration: 0.1 } }} transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}>
+            <Suspense fallback={<ScreenSkeleton />}><Screen /></Suspense>
           </motion.div>
         </AnimatePresence>
       </main>
@@ -156,6 +175,7 @@ function TopBar() {
           {month !== THIS_MONTH && <button type="button" onClick={() => setMonth(THIS_MONTH)} className="ml-1 rounded-xl px-2.5 py-1.5 text-[13px] font-semibold text-accent hover:bg-accent-soft">Today</button>}
         </div>
       )}
+      <ThemeToggle />
       <span data-tour="help" className="lg:hidden"><Button variant="ghost" onClick={() => open({ type: 'help' })} ariaLabel="Help"><HelpCircle size={18} /><span className="hidden sm:inline">Help</span></Button></span>
     </header>
   )
@@ -211,6 +231,7 @@ function Toaster() {
         {toasts.map((t) => (
           <motion.div key={t.id} layout initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 10, scale: 0.95 }}
             className="pointer-events-auto flex w-full max-w-md items-center gap-3 rounded-2xl px-4 py-3 text-[14.5px] shadow-pop" style={{ background: 'var(--ink)', color: 'var(--bg)' }}>
+            {t.tone === 'good' ? <motion.span initial={{ scale: 0, rotate: -45 }} animate={{ scale: 1, rotate: 0 }} className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-good text-white"><Check size={14} strokeWidth={3} /></motion.span> : null}
             <span className="flex-1">{t.text}</span>
             {t.undo && <button type="button" className="rounded-lg border px-3 py-1 font-semibold" style={{ borderColor: 'color-mix(in srgb, var(--bg) 35%, transparent)' }} onClick={() => { replaceData(t.undo!); drop(t.id) }}>Undo</button>}
             <button type="button" aria-label="Dismiss" onClick={() => drop(t.id)} className="opacity-60 hover:opacity-100"><X size={16} /></button>
@@ -221,3 +242,40 @@ function Toaster() {
   )
 }
 
+
+function ScreenSkeleton() {
+  return (
+    <div className="grid grid-cols-12 gap-4" aria-busy="true" aria-label="Loading">
+      {[8, 4, 4, 4, 4].map((w, i) => <div key={i} className={`card col-span-12 h-40 animate-pulse md:col-span-${w}`} style={{ opacity: 0.6 }} />)}
+    </div>
+  )
+}
+
+function ThemeToggle() {
+  const theme = useStore((s) => s.data?.settings.theme ?? 'system')
+  const dark = theme === 'dark' || (theme === 'system' && typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches)
+  return (
+    <motion.button type="button" whileTap={{ scale: 0.9, rotate: -20 }} onClick={() => update((d) => { d.settings.theme = dark ? 'light' : 'dark' })}
+      aria-label={dark ? 'Switch to light theme' : 'Switch to dark theme'} title={dark ? 'Light theme' : 'Dark theme'}
+      className="grid h-10 w-10 place-items-center rounded-xl border border-line bg-surface text-ink2 shadow-card hover:text-ink">
+      <AnimatePresence mode="wait" initial={false}>
+        <motion.span key={dark ? 'sun' : 'moon'} initial={{ rotate: -90, opacity: 0 }} animate={{ rotate: 0, opacity: 1 }} exit={{ rotate: 90, opacity: 0 }} transition={{ duration: 0.2 }}>
+          {dark ? <Sun size={18} /> : <Moon size={18} />}
+        </motion.span>
+      </AnimatePresence>
+    </motion.button>
+  )
+}
+
+function SaveWarning() {
+  const err = useStore((s) => s.saveError)
+  const go = useUI((u) => u.go)
+  if (!err) return null
+  return (
+    <div role="alert" className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-bad bg-bad-soft px-4 py-3 text-[14.5px]">
+      <AlertTriangle size={18} className="shrink-0 text-bad" />
+      <p className="flex-1">{err} New changes can't be stored right now. Download a backup so nothing is lost, then free up space in your browser.</p>
+      <Button size="sm" variant="danger" onClick={() => go('settings')}>Back up now</Button>
+    </div>
+  )
+}

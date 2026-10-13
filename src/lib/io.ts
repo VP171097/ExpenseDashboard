@@ -1,6 +1,6 @@
-import { catName, accountName, itemsIn, uid } from './calc'
+import { catName, accountName, cents, itemsIn, uid } from './calc'
 import { pad, TODAY } from './dates'
-import type { State } from './types'
+import type { Kind, State } from './types'
 
 const cell = (v: unknown) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s }
 
@@ -46,28 +46,76 @@ function num(s: string) {
   return parseFloat(t.replace(/,/g, ''))
 }
 
-/** Adds rows from a bank export to the state. Returns how many were added, or an error message. */
-export function importCsv(d: State, text: string): number | string {
+export interface ImportRow { line: number; date: string; type: Kind; catName: string; sub: string; amount: number; note: string; person: string; dup: boolean }
+export interface ImportPlan { rows: ImportRow[]; invalid: { line: number; reason: string }[]; newCats: string[]; dupCount: number }
+
+/**
+ * Reads a bank CSV without changing anything. Rows are checked in batches (so a big file
+ * doesn't freeze the page) and returned for preview. Nothing is saved until commitImport.
+ */
+export async function prepareImport(s: State, text: string, onProgress?: (done: number, total: number) => void): Promise<ImportPlan | string> {
   const rows = parseCsv(text)
   if (rows.length < 2) return 'No rows found. The first line should be headings such as Date, Description, Amount.'
   const h = rows[0].map((x) => x.trim().toLowerCase())
   const col = (...n: string[]) => h.findIndex((x) => n.some((k) => x.includes(k)))
-  const ci = { date: col('date'), note: col('desc', 'note', 'memo', 'payee', 'name', 'details'), amt: col('amount', 'value', 'sum'), type: col('type'), cat: col('category'), person: col('person', 'who') }
+  const ci = { date: col('date'), note: col('desc', 'note', 'memo', 'payee', 'name', 'details'), amt: col('amount', 'value', 'sum'), type: col('type'), cat: col('category'), sub: col('sub'), person: col('person', 'who') }
+  if (ci.sub === ci.cat) ci.sub = -1
   if (ci.date < 0 || ci.amt < 0) return 'The file needs at least a Date column and an Amount column.'
-  let n = 0
-  for (const r of rows.slice(1)) {
+  // existing entries, for spotting rows that are already in Tally
+  const seen = new Set(s.tx.map((t) => `${t.date}|${cents(t.amount)}`))
+  const plan: ImportPlan = { rows: [], invalid: [], newCats: [], dupCount: 0 }
+  const known = new Set(s.categories.map((c) => `${c.kind}|${c.name.toLowerCase()}`))
+  const body = rows.slice(1)
+  for (let i = 0; i < body.length; i++) {
+    const r = body[i], line = i + 2
     const ds = normDate(r[ci.date] ?? '')
     const a = num(r[ci.amt] ?? '')
-    if (!ds || !isFinite(a) || !a) continue
+    if (!ds) { plan.invalid.push({ line, reason: `Date "${(r[ci.date] ?? '').slice(0, 20)}" not understood` }); continue }
+    if (!isFinite(a) || !a) { plan.invalid.push({ line, reason: `Amount "${(r[ci.amt] ?? '').slice(0, 20)}" is not a number` }); continue }
+    if (Math.abs(a) > 1e9) { plan.invalid.push({ line, reason: 'Amount is too large' }); continue }
     const tt = ci.type >= 0 ? String(r[ci.type]).toLowerCase() : ''
-    const type = /in|income|credit/.test(tt) && !/out/.test(tt) ? 'income' : /aside|sav/.test(tt) ? 'savings' : tt ? 'expense' : a > 0 ? 'income' : 'expense'
-    const cn = ci.cat >= 0 ? String(r[ci.cat]).trim() : ''
-    let c = d.categories.find((x) => x.kind === type && x.name.toLowerCase() === cn.toLowerCase())
-    if (!c && cn) { c = { id: 'c' + uid(), name: cn, kind: type, group: type === 'savings' ? 'future' : 'extras', plan: 0, slot: null, icon: 'box' }; d.categories.push(c) }
-    if (!c) c = d.categories.find((x) => x.kind === type && x.id === 'other') ?? d.categories.find((x) => x.kind === type)!
-    const pn = ci.person >= 0 ? String(r[ci.person]).trim() : ''
-    d.tx.push({ id: uid(), date: ds, type, cat: c.id, amount: Math.abs(Math.round(a * 100) / 100), account: d.accounts[0].id, person: d.people.includes(pn) ? pn : d.people[0], note: ci.note >= 0 ? String(r[ci.note]).trim() : '' })
+    const type: Kind = /in|income|credit/.test(tt) && !/out/.test(tt) ? 'income' : /aside|sav/.test(tt) ? 'savings' : tt ? 'expense' : a > 0 ? 'income' : 'expense'
+    const amount = Math.abs(Math.round(a * 100) / 100)
+    const catName = ci.cat >= 0 ? String(r[ci.cat]).trim() : ''
+    if (catName && !known.has(`${type}|${catName.toLowerCase()}`)) { known.add(`${type}|${catName.toLowerCase()}`); plan.newCats.push(catName) }
+    const key = `${ds}|${cents(amount)}`
+    const dup = seen.has(key)
+    if (dup) plan.dupCount++
+    seen.add(key)
+    plan.rows.push({ line, date: ds, type, catName, sub: ci.sub >= 0 ? String(r[ci.sub]).trim() : '', amount, note: ci.note >= 0 ? String(r[ci.note]).trim().slice(0, 120) : '', person: ci.person >= 0 ? String(r[ci.person]).trim() : '', dup })
+    if (i % 1000 === 999) { onProgress?.(i + 1, body.length); await new Promise((res) => setTimeout(res, 0)) }
+  }
+  onProgress?.(body.length, body.length)
+  if (!plan.rows.length) return plan.invalid.length ? `None of the ${plan.invalid.length} rows could be read. ${plan.invalid[0].reason} (line ${plan.invalid[0].line}).` : 'No rows found.'
+  return plan
+}
+
+/** Adds the previewed rows in one change (so one Undo removes them all). */
+export function commitImport(d: State, plan: ImportPlan, skipDupes: boolean) {
+  let n = 0
+  const byName = new Map(d.categories.map((c) => [`${c.kind}|${c.name.toLowerCase()}`, c]))
+  for (const r of plan.rows) {
+    if (skipDupes && r.dup) continue
+    let c = r.catName ? byName.get(`${r.type}|${r.catName.toLowerCase()}`) : undefined
+    if (!c && r.catName) { c = { id: 'c' + uid(), name: r.catName, kind: r.type, group: r.type === 'savings' ? 'future' : 'extras', plan: 0, slot: null, icon: 'box' }; d.categories.push(c); byName.set(`${r.type}|${r.catName.toLowerCase()}`, c) }
+    if (!c) c = d.categories.find((x) => x.kind === r.type && x.id === 'other') ?? d.categories.find((x) => x.kind === r.type)!
+    d.tx.push({ id: uid(), date: r.date, type: r.type, cat: c.id, amount: r.amount, account: d.accounts[0].id, person: d.people.includes(r.person) ? r.person : d.people[0], note: r.note, ...(r.sub ? { sub: r.sub } : {}) })
     n++
   }
-  return n || 'No rows could be read. Check that dates look like 2026-10-11 or 11/10/2026.'
+  return n
+}
+
+/** Checks a backup before it replaces anything. Returns what it contains, or why it can't be used. */
+export function checkBackup(x: unknown): { ok: true; state: State; summary: string } | { ok: false; reason: string } {
+  const d = x as State
+  if (!d || typeof d !== 'object') return { ok: false, reason: "That doesn't look like a Tally backup." }
+  if (d.v !== 2) return { ok: false, reason: 'This backup is from a different version of Tally.' }
+  for (const k of ['tx', 'rules', 'categories', 'accounts', 'goals', 'debts', 'people'] as const)
+    if (!Array.isArray(d[k])) return { ok: false, reason: `The backup is missing its ${k === 'tx' ? 'transactions' : k}.` }
+  if (!d.settings || typeof d.settings.currency !== 'string') return { ok: false, reason: 'The backup is missing its settings.' }
+  if (!d.accounts.length || !d.categories.length) return { ok: false, reason: 'The backup has no accounts or categories.' }
+  const bad = d.tx.findIndex((t) => !t || !/^\d{4}-\d{2}-\d{2}$/.test(t.date) || !isFinite(+t.amount) || !['expense', 'income', 'savings'].includes(t.type))
+  if (bad >= 0) return { ok: false, reason: `Entry ${bad + 1} in the backup is damaged (bad date, amount or type).` }
+  const span = d.tx.length ? `${d.tx.reduce((m, t) => (t.date < m ? t.date : m), '9999')} to ${d.tx.reduce((m, t) => (t.date > m ? t.date : m), '0000')}` : 'no dates'
+  return { ok: true, state: d, summary: `${d.tx.length.toLocaleString()} entries (${span}), ${d.rules.length} regular items, ${d.accounts.length} accounts, ${d.goals.length} goals, ${d.debts.length} debts.` }
 }

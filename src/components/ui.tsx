@@ -1,4 +1,4 @@
-import { animate, AnimatePresence, motion, useDragControls, useReducedMotion } from 'framer-motion'
+import { animate, AnimatePresence, motion, useDragControls, useReducedMotion, useSpring } from 'framer-motion'
 import {
   Baby, BookOpen, Briefcase, Car, Coins, CreditCard, Dumbbell, Gift, GraduationCap, Heart, HelpCircle, Home, Package, PawPrint,
   PiggyBank, Plane, ShoppingBag, ShoppingCart, Sparkles, Ticket, TrendingUp, Tv, UtensilsCrossed, X, Zap, Shirt, Coffee, Wrench,
@@ -229,10 +229,30 @@ export function Empty({ icon, title, text, action }: { icon?: ReactNode; title: 
 
 /* ---------- celebration ---------- */
 export function celebrate(e?: { clientX: number; clientY: number } | null, big = false) {
-  if (typeof window === 'undefined' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  if (!effectsOn()) return
   const origin = e ? { x: e.clientX / window.innerWidth, y: e.clientY / window.innerHeight } : { x: 0.5, y: 0.6 }
   const colors = ['#1baf7a', '#2a78d6', '#eda100', '#e87ba4', '#6250d6']
   try {
     confetti({ particleCount: big ? 140 : 40, spread: big ? 100 : 60, startVelocity: big ? 45 : 28, origin, colors, scalar: big ? 1 : 0.8, ticks: big ? 220 : 120, disableForReducedMotion: true })
   } catch { /* canvas unavailable */ }
+}
+
+/** Decorative effects are off when the device asks for less motion or the user chose reduced effects. */
+export function effectsOn() {
+  if (typeof window === 'undefined') return false
+  return document.documentElement.dataset.effects !== 'reduced' && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
+
+/** Gentle 3D tilt that follows a mouse. Off on touch screens and with reduced effects. */
+export function Tilt({ children, className = '', max = 5 }: { children: ReactNode; className?: string; max?: number }) {
+  const rx = useSpring(0, { stiffness: 180, damping: 20 }), ry = useSpring(0, { stiffness: 180, damping: 20 })
+  const [on] = useState(() => typeof window !== 'undefined' && window.matchMedia('(hover: hover) and (pointer: fine)').matches && effectsOn())
+  if (!on) return <div className={className}>{children}</div>
+  return (
+    <motion.div className={className} style={{ rotateX: rx, rotateY: ry, transformPerspective: 1000 }}
+      onPointerMove={(e) => { const r = e.currentTarget.getBoundingClientRect(); ry.set(((e.clientX - r.left) / r.width - 0.5) * max * 2); rx.set(-((e.clientY - r.top) / r.height - 0.5) * max * 2) }}
+      onPointerLeave={() => { rx.set(0); ry.set(0) }}>
+      {children}
+    </motion.div>
+  )
 }

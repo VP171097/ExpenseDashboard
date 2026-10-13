@@ -1,9 +1,11 @@
 import { motion } from 'framer-motion'
 import { ChevronDown, ChevronUp, ListOrdered, Pencil, Plus, Rabbit, Scale } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { TimeChart } from '../components/charts'
 import { Button, Card, CardHead, celebrate, Chip, Empty, Explain, Num, Slider } from '../components/ui'
-import { simulate, sum, uid } from '../lib/calc'
+import { earliestMonth, itemsIn, simulate, sum, uid } from '../lib/calc'
+import { Pager, usePaged } from '../components/Pager'
+import { ItemRow } from '../components/bits'
 import { addMonthsDate, NOW, TODAY } from '../lib/dates'
 import { money, money0 } from '../lib/money'
 import { toast, update, useData, useUI } from '../lib/store'
@@ -81,6 +83,8 @@ export default function Debts() {
         <p className="-mt-1 text-center text-[12px] text-muted">Months from now (each tick is a year)</p>
       </Card>
 
+      <RepaymentHistory />
+
       <Card i={3} className="col-span-12">
         <CardHead title="The order to pay them off" sub="Made a payment on top of the usual? Log it and the balance goes down." right={<Button onClick={() => open({ type: 'debt' })}><Plus size={16} />Add</Button>} />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -142,5 +146,21 @@ function DebtCard({ id, i, payoffIn, per, custom, count }: { id: string; i: numb
         <Button type="submit" size="sm">Log payment</Button>
       </form>
     </motion.div>
+  )
+}
+
+/** Loan and card payments made so far, newest first. */
+function RepaymentHistory() {
+  const s = useData()
+  const debtCats = new Set(s.categories.filter((c) => c.id === 'debt' || /loan|debt|card/i.test(c.name)).map((c) => c.id))
+  const list = useMemo(() => itemsIn(s, `${earliestMonth(s)}-01`, TODAY).filter((t) => t.paid && t.type === 'expense' && debtCats.has(t.cat)).sort((a, b) => b.date.localeCompare(a.date)), [s]) // eslint-disable-line react-hooks/exhaustive-deps
+  const pg = usePaged(list, 'repay', 10)
+  const total = sum(list.map((t) => t.amount))
+  return (
+    <Card i={4} className="col-span-12 order-last">
+      <CardHead title="Repayment history" sub={list.length ? `${money(total)} paid towards loans and cards so far` : 'Payments to loans and cards will show here'} />
+      {list.length ? <div className="-mx-2">{pg.rows.map((t) => <ItemRow key={t.id} item={t} showDate />)}</div> : <Empty title="No repayments recorded yet" />}
+      <Pager {...pg} noun="payments" />
+    </Card>
   )
 }

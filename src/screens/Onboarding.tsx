@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, ArrowRight, Check, Eye, Gauge, PiggyBank, Sparkles, Wallet } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Button, CatIcon, celebrate, Field, Segmented, Slider } from '../components/ui'
+import { CoinScene3D } from '../components/three'
 import { balances, uid, worthNow } from '../lib/calc'
 import { addDays, addMonthsDate, iso, NOW, pad, parse, THIS_MONTH, TODAY } from '../lib/dates'
 import { CURRENCIES, money0, setCurrency } from '../lib/money'
@@ -115,6 +116,7 @@ export default function Onboarding() {
           <motion.div key={step} custom={dir} initial={{ opacity: 0, x: dir * 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: dir * -40 }} transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}>
             {step === 0 && (
               <div className="flex flex-col gap-5">
+                <CoinScene3D className="-mx-6 -mt-4 h-44 sm:-mx-9 sm:h-52" fallback={<WelcomeArt />} />
                 <h1 className="text-[34px] font-extrabold leading-tight sm:text-[40px]">Money, made simple.</h1>
                 <p className="text-[17px] text-ink2">Tally shows you what's safe to spend, keeps track of your bills and helps you save. No money knowledge needed.</p>
                 <ul className="flex flex-col gap-3">
@@ -214,6 +216,20 @@ export default function Onboarding() {
             )}
           </motion.div>
         </AnimatePresence>
+        {step >= 2 && step <= 4 && monthlyPay > 0 && (
+          <motion.div layout className="mt-6 rounded-2xl border border-line bg-surface2 p-4" aria-live="polite">
+            <p className="mb-2 text-[12.5px] font-bold uppercase tracking-[.08em] text-muted">Your monthly plan so far</p>
+            <div className="flex h-3 gap-[3px] overflow-hidden rounded-full">
+              {([[billTotal, 'var(--s1)'], [Math.max(0, everyday - buffer), 'var(--s2)'], [saveMonthly, 'var(--s3)'], [buffer, 'var(--s4)']] as [number, string][]).filter(([v]) => v > 0).map(([v, c], i) => (
+                <motion.span key={i} layout style={{ background: c }} animate={{ width: `${(v / Math.max(1, monthlyPay)) * 100}%` }} transition={{ type: 'spring', stiffness: 120, damping: 20 }} />
+              ))}
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[13px] text-ink2 tnum">
+              <span>Pay <b className="text-ink">{money0(monthlyPay)}</b></span><span>Bills <b className="text-ink">{money0(billTotal)}</b></span>
+              <span>Everyday <b className="text-ink">{money0(Math.max(0, everyday - buffer))}</b></span><span>Put aside <b className="text-ink">{money0(saveMonthly)}</b></span>
+            </div>
+          </motion.div>
+        )}
         {step > 0 && (
           <div className="mt-8 flex items-center justify-between gap-3">
             <Button variant="ghost" onClick={back}><ArrowLeft size={16} />Back</Button>
@@ -239,5 +255,22 @@ function PlanPreview({ rows, total }: { rows: [string, number, string][]; total:
         </motion.div>
       ))}
     </div>
+  )
+}
+
+/** Flat illustration used when 3D is off. */
+function WelcomeArt() {
+  return (
+    <svg viewBox="0 0 400 180" className="h-full w-full" aria-hidden>
+      <defs>
+        <radialGradient id="wg" cx="50%" cy="50%" r="50%"><stop offset="0" stopColor="var(--accent)" stopOpacity=".35" /><stop offset="1" stopColor="var(--accent)" stopOpacity="0" /></radialGradient>
+        <linearGradient id="wc" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#ffd98a" /><stop offset="1" stopColor="#e09a2c" /></linearGradient>
+      </defs>
+      <ellipse cx="200" cy="90" rx="190" ry="80" fill="url(#wg)" />
+      <ellipse cx="200" cy="96" rx="78" ry="26" fill="none" stroke="var(--accent)" strokeWidth="10" opacity=".8" />
+      {[[110, 70, 16], [292, 62, 13], [150, 132, 11], [262, 128, 15], [200, 48, 12]].map(([x, y, r], i) => (
+        <g key={i}><ellipse cx={x} cy={y + 3} rx={r} ry={r * 0.45} fill="#b9781c" /><ellipse cx={x} cy={y} rx={r} ry={r * 0.45} fill="url(#wc)" /></g>
+      ))}
+    </svg>
   )
 }
