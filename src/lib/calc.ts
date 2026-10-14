@@ -130,6 +130,25 @@ export function itemsIn(s: State, from: string, to: string): Item[] {
 }
 export const monthItems = (s: State, k: string) => itemsIn(s, k + '-01', monthEnd(k))
 
+/**
+ * Salary that arrives in the last week of a month is meant for the month after (when that option is on),
+ * so it counts as the next month's money in, along with saving taken from it on payday. Bank balances still use the real date.
+ */
+export function forNextMonth(s: State, t: Item) {
+  if (!s.settings.salaryNextMonth || t.type === 'expense') return false
+  const onPay = !!t.ruleId && !!s.rules.find((r) => r.id === t.ruleId)?.payday
+  // salary, and anything put aside on payday out of that salary
+  const pay = t.type === 'income' ? t.cat === 'salary' || onPay : onPay
+  return pay && +t.date.slice(8) > daysIn(t.date.slice(0, 7)) - 7
+}
+/** Everything that counts toward month k's budget: its own items, with month-end salary moved to the month it is for. */
+export function budgetItems(s: State, k: string): (Item & { carried?: boolean })[] {
+  return memo(s, 'budget|' + k, () => [
+    ...monthItems(s, k).filter((t) => !forNextMonth(s, t)),
+    ...monthItems(s, addMonths(k, -1)).filter((t) => forNextMonth(s, t)).map((t) => ({ ...t, carried: true })),
+  ])
+}
+
 export interface MonthStats {
   income: number; spent: number; saved: number
   expectedIn: number; billsDue: number; savingDue: number; nDue: number
@@ -151,8 +170,8 @@ export function monthStats(s: State, k: string): MonthStats {
       byCat: {}, byGroup: { essentials: 0, extras: 0, future: 0 }, byPerson: {}, byDay: z(), extrasDay: z(), inDay: z(), savedDay: z(), biggest: null, bySub: {}, people: {},
     }
     const P = (n?: string) => (m.people[n || '—'] ??= { in: 0, saved: 0, spent: 0, byCat: {} })
-    for (const t of monthItems(s, k)) {
-      const a = cents(t.amount), day = +t.date.slice(8)
+    for (const t of budgetItems(s, k)) {
+      const a = cents(t.amount), day = t.carried ? 1 : +t.date.slice(8)
       if (t.virtual && t.type === 'expense') m.billsAll += a
       if (!t.paid) {
         if (t.type === 'income') m.expectedIn += a
@@ -318,7 +337,7 @@ export function monthPicture(s: State, k: string) {
   const m = monthStats(s, k)
   const isCur = k === THIS_MONTH, isFuture = k > THIS_MONTH
   const dim = daysIn(k)
-  // in the month you started using Tally, the month begins on that day and what you had then counts as money in
+  // in the month you started using SpendCop, the month begins on that day and what you had then counts as money in
   const since = s.settings.since, first = since?.slice(0, 7) === k ? parse(since!).getDate() : 1
   const opening = since?.slice(0, 7) === k ? openingBalance(s) : 0
   const span = dim - first + 1
@@ -331,7 +350,7 @@ export function monthPicture(s: State, k: string) {
   return { m, isCur, isFuture, dim, elapsed, daysLeft, moneyIn, opening, safe, plan, forecast, perDay: daysLeft ? safe / daysLeft : 0 }
 }
 
-/** What was in your everyday accounts and cash on the day you started using Tally. */
+/** What was in your everyday accounts and cash on the day you started using SpendCop. */
 export const openingBalance = (s: State) => sum(s.accounts.filter((a) => a.type === 'everyday' || a.type === 'cash').map((a) => +a.start || 0))
 
 /* ---------- debts ---------- */

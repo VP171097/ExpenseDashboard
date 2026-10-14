@@ -3,6 +3,7 @@ import {
   Banknote, BarChart3, Bot, CalendarClock, Cloud, CloudOff, LogIn, RefreshCw, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Plane, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check, Gem,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, type ComponentType } from 'react'
+import ReportButton from './components/ReportButton'
 import Sheets from './components/Sheets'
 import { Button } from './components/ui'
 import { monthName, THIS_MONTH } from './lib/dates'
@@ -155,7 +156,7 @@ function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-screen flex-col gap-5 bg-cover px-4 py-6 text-cover-ink lg:flex">
       <div className="flex items-center gap-2.5 px-2 font-display text-[24px] font-extrabold">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-cover-ink text-cover"><Wallet size={18} /></span>Tally
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-cover-ink text-cover"><Wallet size={18} /></span>SpendCop
       </div>
       <span data-tour="add" className="contents"><Button variant="primary" size="lg" onClick={() => open({ type: 'quick' })} className="!bg-cover-ink !text-cover !border-transparent">
         <Plus size={20} />Add money in or out
@@ -177,7 +178,7 @@ function Sidebar() {
       </nav>
       <AccountChip />
       <div className="flex flex-col gap-1">
-        <button type="button" onClick={() => openAsk()} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><Bot size={18} />Ask Tally</button>
+        <button type="button" onClick={() => openAsk()} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><Bot size={18} />Ask SpendCop</button>
         <button type="button" data-tour="help" onClick={() => open({ type: 'help' })} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><HelpCircle size={18} />Help & simple answers</button>
         <button type="button" onClick={() => { go('home'); setTimeout(() => useUI.getState().setTour(true), 300) }} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><Compass size={18} />Take the tour</button>
       </div>
@@ -207,7 +208,8 @@ function TopBar() {
           {month !== THIS_MONTH && <button type="button" onClick={() => setMonth(THIS_MONTH)} className="ml-1 rounded-xl px-2.5 py-1.5 text-[13px] font-semibold text-accent hover:bg-accent-soft">Today</button>}
         </div>
       )}
-      <button type="button" onClick={() => openAsk()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface px-3 font-semibold text-ink shadow-card hover:border-accent" aria-label="Ask Tally"><Bot size={18} className="text-accent" /><span className="hidden sm:inline">Ask Tally</span></button>
+      {n.month && <ReportButton month={month} />}
+      <button type="button" onClick={() => openAsk()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface px-3 font-semibold text-ink shadow-card hover:border-accent" aria-label="Ask SpendCop"><Bot size={18} className="text-accent" /><span className="hidden sm:inline">Ask SpendCop</span></button>
       <ThemeToggle />
       <button type="button" onClick={() => useUI.getState().go('settings')} aria-label="Settings" title="Settings" aria-current={view === 'settings' ? 'page' : undefined}
         className={`grid h-10 w-10 place-items-center rounded-xl border bg-surface shadow-card hover:text-ink ${view === 'settings' ? 'border-accent text-accent' : 'border-line text-ink2'}`}><Cog size={18} /></button>
@@ -350,7 +352,7 @@ function SyncConflict() {
   return (
     <div className="fixed inset-0 z-[80] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="conflict-title">
       <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} className="w-full max-w-lg rounded-[24px] border border-line bg-surface p-6 shadow-pop">
-        <h2 id="conflict-title" className="text-[21px] font-extrabold">Which copy should Tally keep?</h2>
+        <h2 id="conflict-title" className="text-[21px] font-extrabold">Which copy should SpendCop keep?</h2>
         <p className="mt-1.5 text-[14.5px] text-ink2">Your account has changes from another device, and this device has changes too. Pick the one to keep. The other is set aside on this device, and you can bring it back from Settings.</p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => resolveConflict('device')} className="rounded-2xl border border-line p-4 text-left hover:border-accent">

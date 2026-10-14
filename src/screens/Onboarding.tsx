@@ -69,7 +69,7 @@ export default function Onboarding() {
   const buffer = Math.round(everyday * 0.1)
 
   const pd: Payday = { rule, day: Math.max(1, Math.min(31, parseInt(payDom) || 1)), shift }
-  // the first salary Tally counts: the next one from today
+  // the first salary SpendCop counts: the next one from today
   const firstPay = cycle === 'monthly' ? nextPayday(pd, off) : payday
   const monthLeft = Math.max(0, daysIn(THIS_MONTH) - NOW.getDate())
   const next = () => { setDir(1); setStep((x) => x + 1) }
@@ -130,7 +130,7 @@ export default function Onboarding() {
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-8" style={{ background: 'radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--accent) 16%, var(--bg)), var(--bg))' }}>
       {step === 0 && !signedIn && <button type="button" onClick={() => useEntry.getState().go('landing')} className="mb-4 inline-flex items-center gap-1.5 self-center text-[14px] font-semibold text-ink2 hover:text-ink"><ArrowLeft size={16} />Back to the home page</button>}
       <div className="mb-6 flex items-center gap-2.5 font-display text-[26px] font-extrabold">
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-cover text-cover-ink"><Wallet size={20} /></span>Tally
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-cover text-cover-ink"><Wallet size={20} /></span>SpendCop
       </div>
       <div className="card relative w-full max-w-xl overflow-hidden p-6 sm:p-9">
         {step > 0 && (
@@ -146,7 +146,7 @@ export default function Onboarding() {
               <div className="flex flex-col gap-5">
                 <CoinScene3D className="-mx-6 -mt-4 h-44 sm:-mx-9 sm:h-52" fallback={<WelcomeArt />} />
                 <h1 className="text-[34px] font-extrabold leading-tight sm:text-[40px]">Money, made simple.</h1>
-                <p className="text-[17px] text-ink2">Tally shows you what's safe to spend, keeps track of your bills and helps you save. No money knowledge needed.</p>
+                <p className="text-[17px] text-ink2">SpendCop shows you what's safe to spend, keeps track of your bills and helps you save. No money knowledge needed.</p>
                 <ul className="flex flex-col gap-3">
                   {[[Eye, 'See exactly what you can spend today'], [Gauge, 'Know if you are on track at a glance'], [PiggyBank, 'Save up for the things you care about']].map(([I, t], i) => {
                     const Icon = I as typeof Eye
@@ -192,14 +192,14 @@ export default function Onboarding() {
                       </div></div>
                   </>
                 ) : <Field label="When is your next payday?"><input className="field" type="date" min={TODAY} value={payday} onChange={(e) => setPayday(e.target.value)} /></Field>}
-                {firstPay && <p className="rounded-2xl bg-accent-soft p-3 text-[14.5px]">Your next salary: <b>{fmtDate(firstPay, { weekday: 'long', day: 'numeric', month: 'long' })}</b>. Tally counts your pay from then on.</p>}
+                {firstPay && <p className="rounded-2xl bg-accent-soft p-3 text-[14.5px]">Your next salary: <b>{fmtDate(firstPay, { weekday: 'long', day: 'numeric', month: 'long' })}</b>. SpendCop counts your pay from then on.</p>}
                 {monthlyPay > 0 && cycle !== 'monthly' && <p className="rounded-2xl bg-accent-soft p-3 text-[14.5px]">That's about <b>{money0(monthlyPay)}</b> a month.</p>}
               </div>
             )}
             {step === 3 && (
               <div className="flex flex-col gap-5">
                 <h2 className="text-[28px] font-extrabold">Where are you starting from?</h2>
-                <p className="-mt-2 text-ink2">Tally starts from <b>today</b>. Nothing from before today is added; your balances today are your starting point.</p>
+                <p className="-mt-2 text-ink2">SpendCop starts from <b>today</b>. Nothing from before today is added; your balances today are your starting point.</p>
                 <Field label="Money in your main bank account today"><input className="field font-display text-[26px] font-bold" autoFocus type="number" step="any" inputMode="decimal" value={bank} onChange={(e) => setBank(e.target.value)} placeholder="0" /></Field>
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Field label="Cash on you (optional)"><input className="field" type="number" step="any" inputMode="decimal" value={cash} onChange={(e) => setCash(e.target.value)} /></Field>
@@ -256,7 +256,7 @@ export default function Onboarding() {
                   )
                 })}
                 <Button onClick={() => setDues((d) => [...d, { name: '', amount: '', date: TODAY }])}><Plus size={16} />Add a payment</Button>
-                <p className="text-[13px] text-muted">Loans and card EMIs can be added on the Loans & EMIs page afterwards; Tally works out each instalment for you.</p>
+                <p className="text-[13px] text-muted">Loans and card EMIs can be added on the Loans & EMIs page afterwards; SpendCop works out each instalment for you.</p>
               </div>
             )}
             {step === 6 && (
@@ -279,13 +279,13 @@ export default function Onboarding() {
                     </div>
                   </>
                 )}
-                {monthlyPay > 0 && <p className="rounded-2xl bg-accent-soft p-3.5 text-[14.5px]">Tally will put aside <b>{money0(saveMonthly)}</b> each month for you.</p>}
+                {monthlyPay > 0 && <p className="rounded-2xl bg-accent-soft p-3.5 text-[14.5px]">SpendCop will put aside <b>{money0(saveMonthly)}</b> each month for you.</p>}
               </div>
             )}
             {step === 7 && (
               <div className="flex flex-col gap-5">
                 <h2 className="text-[28px] font-extrabold">Here's your plan</h2>
-                <p className="-mt-2 rounded-2xl bg-surface2 p-3 text-[14px] text-ink2">Until your next salary on <b className="text-ink">{fmtDate(firstPay || TODAY, { day: 'numeric', month: 'long' })}</b>, Tally works from the <b className="text-ink">{money0((parseFloat(bank) || 0) + (parseFloat(cash) || 0))}</b> you have today{dueTotal ? <>, minus <b className="text-ink">{money0(dueTotal)}</b> still to pay</> : null}. After that, every month runs like this:</p>
+                <p className="-mt-2 rounded-2xl bg-surface2 p-3 text-[14px] text-ink2">Until your next salary on <b className="text-ink">{fmtDate(firstPay || TODAY, { day: 'numeric', month: 'long' })}</b>, SpendCop works from the <b className="text-ink">{money0((parseFloat(bank) || 0) + (parseFloat(cash) || 0))}</b> you have today{dueTotal ? <>, minus <b className="text-ink">{money0(dueTotal)}</b> still to pay</> : null}. After that, every month runs like this:</p>
                 <p className="-mt-2 text-ink2">Every month, your {money0(monthlyPay)} is split like this. You can fine-tune it any time.</p>
                 <PlanPreview rows={[['Bills', billTotal, 'var(--s1)'], ['Everyday spending', everyday - buffer, 'var(--s2)'], ['Put aside', saveMonthly, 'var(--s3)'], ['Spare, just in case', buffer, 'var(--s4)']]} total={monthlyPay} />
                 {billTotal + saveMonthly > monthlyPay && <p className="rounded-2xl bg-bad-soft p-3 text-[14px] text-bad">Your bills and savings are more than you earn. You can still continue and adjust things on the Plan page.</p>}

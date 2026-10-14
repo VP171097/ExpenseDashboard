@@ -47,7 +47,7 @@ export default function Year() {
   }, [notes, year, s.reflections])
 
   const exportXlsx = async () => {
-    const r = await saveFile(`tally-${year}.xlsx`, await workbook(s, year))
+    const r = await saveFile(`spendcop-${year}.xlsx`, await workbook(s, year))
     toast(r === 'saved' ? 'Your Excel workbook is ready' : r === 'declined' ? 'Download cancelled' : 'Could not save the file here')
   }
 

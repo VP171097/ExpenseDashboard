@@ -85,7 +85,7 @@ export function emiSchedule(e: Emi) {
 
 /**
  * The regular item that puts instalments on the calendar. It starts at the first instalment on or
- * after `from`, so instalments paid before you started using Tally aren't added as past spending.
+ * after `from`, so instalments paid before you started using SpendCop aren't added as past spending.
  */
 export function emiRule(e: Emi, from: string, existing?: Rule, cat = 'debt'): Rule | null {
   const st = emiStatus(e, from)

@@ -21,7 +21,7 @@ export default function Goals() {
         className="col-span-12 flex min-h-[220px] flex-col items-center justify-center gap-3 rounded-[20px] border-2 border-dashed border-line2 p-6 text-center text-ink2 transition-colors hover:border-accent hover:text-ink sm:col-span-6 xl:col-span-4">
         <span className="grid h-14 w-14 place-items-center rounded-2xl bg-accent-soft text-accent"><Plus size={26} /></span>
         <span className="font-display text-[19px] font-bold text-ink">Start a new goal</span>
-        <span className="max-w-[260px] text-[14px]">A holiday, a car, a rainy day fund. Tell Tally the amount and the date, and it works out how much to put aside each month.</span>
+        <span className="max-w-[260px] text-[14px]">A holiday, a car, a rainy day fund. Tell SpendCop the amount and the date, and it works out how much to put aside each month.</span>
       </motion.button>
       <Challenge />
     </div>

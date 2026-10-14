@@ -61,7 +61,9 @@ export interface Settings {
   payday?: Payday
   /** days of the week you don't work (0 = Sunday) */
   offDays?: number[]
-  /** the day you started using Tally; nothing before it is counted */
+  /** salary arriving in the last week of a month counts as the next month's money in */
+  salaryNextMonth?: boolean
+  /** the day you started using SpendCop; nothing before it is counted */
   since?: string
   /** 'reduced' turns off 3D, tilt, particles and confetti */
   effects?: 'full' | 'reduced'

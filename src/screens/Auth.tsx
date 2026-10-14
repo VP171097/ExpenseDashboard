@@ -60,12 +60,12 @@ export default function Auth({ reset = false }: { reset?: boolean }) {
         <div className="relative min-h-[200px] md:min-h-[620px]">
           <img src={writing} alt="Planning the month in a notebook with a cup of coffee" className="absolute inset-0 h-full w-full object-cover" />
           <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(13,18,36,.15), rgba(13,18,36,.85))' }} />
-          <div className="absolute left-5 top-5 flex items-center gap-2 font-display text-[19px] font-extrabold text-white"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-[#2a2160]"><Wallet size={16} /></span>Tally</div>
+          <div className="absolute left-5 top-5 flex items-center gap-2 font-display text-[19px] font-extrabold text-white"><span className="grid h-8 w-8 place-items-center rounded-lg bg-white text-[#2a2160]"><Wallet size={16} /></span>SpendCop</div>
           <div className="absolute bottom-0 hidden p-7 text-white md:block">
             <img src={shot} alt="" className="mb-6 w-[88%] rounded-xl border border-white/15 shadow-pop" />
             <p className="font-display text-[26px] font-extrabold leading-tight">Small steps.<br />Calmer money.</p>
             <ul className="mt-4 space-y-1.5 text-[14px] text-white/85">
-              {['Your safe-to-spend number, every day', 'Synced across your phone and laptop', 'Ask Tally about your own money'].map((t) => <li key={t} className="flex items-center gap-2"><CheckCircle2 size={15} className="text-[#4fd5b2]" />{t}</li>)}
+              {['Your safe-to-spend number, every day', 'Synced across your phone and laptop', 'Ask SpendCop about your own money'].map((t) => <li key={t} className="flex items-center gap-2"><CheckCircle2 size={15} className="text-[#4fd5b2]" />{t}</li>)}
             </ul>
           </div>
         </div>
@@ -84,7 +84,7 @@ export default function Auth({ reset = false }: { reset?: boolean }) {
                 </div>
               ) : (
                 <>
-                  {inClaude && <p className="mt-3 rounded-xl bg-warn-soft px-3.5 py-2.5 text-[13.5px]">You're viewing Tally inside claude.ai, where pages can't reach other websites, so logging in may not work here. Open Tally from its own web address to use your account, or continue without one.</p>}
+                  {inClaude && <p className="mt-3 rounded-xl bg-warn-soft px-3.5 py-2.5 text-[13.5px]">You're viewing SpendCop inside claude.ai, where pages can't reach other websites, so logging in may not work here. Open SpendCop from its own web address to use your account, or continue without one.</p>}
                   {mode === 'login' && <p className="mt-1.5 text-[15px] text-ink2">Welcome back. Your money picks up where you left it.</p>}
                   {mode === 'signup' && <p className="mt-1.5 text-[15px] text-ink2">Free. Keep your money in sync on every device.</p>}
                   {mode === 'forgot' && <p className="mt-1.5 text-[15px] text-ink2">Enter your email and we'll send you a link to choose a new password.</p>}
@@ -145,7 +145,7 @@ function Input({ label, value, onChange, type = 'text', autoComplete, placeholde
   )
 }
 
-/** Shown when this copy of Tally has no Supabase project yet. */
+/** Shown when this copy of SpendCop has no Supabase project yet. */
 function NoCloud({ onConnected, onLocal }: { onConnected: () => void; onLocal: () => void }) {
   const [open, setOpen] = useState(false)
   const [url, setUrl] = useState('')
@@ -163,7 +163,7 @@ function NoCloud({ onConnected, onLocal }: { onConnected: () => void; onLocal: (
   return (
     <div className="mt-5">
       <p className="flex gap-3 rounded-2xl bg-warn-soft p-4 text-[14.5px]"><Cloud size={20} className="mt-0.5 shrink-0 text-warn" />
-        <span>Accounts aren't switched on for this copy of Tally yet. You can still use everything without an account, and your data stays in this browser.</span></p>
+        <span>Accounts aren't switched on for this copy of SpendCop yet. You can still use everything without an account, and your data stays in this browser.</span></p>
       <button type="button" onClick={onLocal} className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl bg-accent font-bold text-accent-ink shadow-pop">Continue without an account <ArrowRight size={18} /></button>
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="mt-4 flex items-center gap-2 text-[14px] font-semibold text-ink2 hover:text-ink"><KeyRound size={16} />Connect your own Supabase project</button>
       <AnimatePresence>{open && (

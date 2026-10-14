@@ -5,7 +5,7 @@ import { Bar, Button, Card, CardHead, Chip, Empty, Explain, Num } from '../compo
 import { sum } from '../lib/calc'
 import { fmtDate, friendlyDay } from '../lib/dates'
 import { emiSchedule, emiStatus } from '../lib/emi'
-import { money, money0 } from '../lib/money'
+import { money2, money0 } from '../lib/money'
 import { useData, useUI } from '../lib/store'
 import type { Emi } from '../lib/types'
 
@@ -16,13 +16,14 @@ export default function Emis() {
   const open = useUI((u) => u.open)
   const list = s.emis ?? []
   if (!list.length) return (
-    <Card><Empty icon={<Landmark />} title="No loans or card EMIs yet" text="Add a loan or something you're paying off in monthly instalments. Tally works out the EMI, how many you've paid and when the last one is due."
+    <Card><Empty icon={<Landmark />} title="No loans or card EMIs yet" text="Add a loan or something you're paying off in monthly instalments. SpendCop works out the EMI, how many you've paid and when the last one is due."
       action={<div className="flex flex-wrap justify-center gap-2"><Button variant="primary" onClick={() => open({ type: 'emi', kind: 'loan' })}><Plus size={16} />Add a loan</Button><Button onClick={() => open({ type: 'emi', kind: 'card' })}><CreditCard size={16} />Add a card EMI</Button></div>} /></Card>
   )
   const st = list.map((e) => ({ e, st: emiStatus(e) }))
   const live = st.filter((x) => x.st.left > 0)
   const owed = sum(live.map((x) => x.st.owed))
-  const monthly = sum(live.filter((x) => x.st.done > 0 || x.st.thisMonth).map((x) => x.st.emi))
+  const paying = live.filter((x) => x.st.done > 0 || x.st.thisMonth), upcomingN = live.length - paying.length
+  const monthly = sum(paying.map((x) => x.st.emi))
   const nextUp = live.map((x) => x.st.next!).filter(Boolean).sort((a, b) => a.date.localeCompare(b.date))[0]
   const nextOf = nextUp && live.find((x) => x.st.next?.date === nextUp.date)
   const freeBy = live.map((x) => x.st.last).sort().at(-1)
@@ -35,7 +36,7 @@ export default function Emis() {
         <p className="mt-1 font-display text-[44px] font-extrabold leading-none sm:text-[58px]"><Num value={owed} /></p>
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
           {([
-            ['Paid each month', money0(monthly), `${live.length} running`],
+            ['Paid each month', money0(monthly), `${paying.length} running${upcomingN ? ` · ${upcomingN} starting later` : ''}`],
             ['Next EMI', nextUp ? money0(nextOf!.st.emi) : '—', nextUp ? `${nextOf!.e.name} · ${friendlyDay(nextUp.date)}` : 'nothing due'],
             ['Last EMI', freeBy ? monthYear(freeBy) : '—', freeBy ? 'then you are free of them' : 'all paid off'],
             ['Interest still to pay', money0(sum(live.map((x) => x.st.interestTotal - x.st.interestPaid))), 'if paid as scheduled'],
@@ -77,7 +78,7 @@ function EmiCard({ e, st, i }: { e: Emi; st: ReturnType<typeof emiStatus>; i: nu
         <button type="button" className="grid h-8 w-8 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-ink" onClick={() => open({ type: 'emi', id: e.id })} aria-label={`Edit ${e.name}`}><Pencil size={15} /></button>
       </div>
       <div className="flex flex-wrap items-end justify-between gap-2">
-        <div><p className="label">EMI</p><p className="font-display text-[26px] font-bold leading-none">{money(st.emi)}</p></div>
+        <div><p className="label">EMI</p><p className="font-display text-[26px] font-bold leading-none">{money2(st.emi)}</p></div>
         {st.phase === 'closed' ? <Chip tone="good">All {e.months} paid</Chip>
           : tm ? <Chip tone={tm.paid ? 'good' : 'accent'}>{tm.paid ? 'Paid' : 'Due'} {fmtDate(tm.date)} · EMI {tm.n} of {e.months}</Chip>
             : <Chip>Starts {fmtDate(st.next!.date, { day: 'numeric', month: 'short', year: 'numeric' })}</Chip>}
@@ -110,7 +111,7 @@ function Schedule({ e, done }: { e: Emi; done: number }) {
           {rows.map((r) => (
             <tr key={r.n} className={`border-t border-line ${r.n <= done ? 'text-muted' : ''}`}>
               <td className="px-2 py-1">{r.n}</td><td className="px-2">{fmtDate(r.date, { day: 'numeric', month: 'short', year: '2-digit' })}</td>
-              <td className="px-2 text-right">{money(r.pay)}</td><td className="px-2 text-right">{money(r.interest)}</td><td className="px-2 text-right">{money(r.principal)}</td><td className="px-2 text-right">{money0(r.balance)}</td>
+              <td className="px-2 text-right">{money2(r.pay)}</td><td className="px-2 text-right">{money2(r.interest)}</td><td className="px-2 text-right">{money2(r.principal)}</td><td className="px-2 text-right">{money0(r.balance)}</td>
             </tr>
           ))}
         </tbody>

@@ -1,12 +1,14 @@
 import { motion } from 'framer-motion'
-import { ChevronRight, Plus } from 'lucide-react'
+import { ChevronRight, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { Donut, MonthBars, TimeChart } from '../components/charts'
 import { Bar, Button, Card, CardHead, Explain, Num, Slider } from '../components/ui'
 import { balances, sum, worthNow } from '../lib/calc'
 import { addMonths, monthName, NOW, THIS_MONTH } from '../lib/dates'
 import { money, money0 } from '../lib/money'
-import { update, useData, useUI } from '../lib/store'
+import { toast, update, useData, useUI } from '../lib/store'
+import { emiStatus } from '../lib/emi'
+import type { State } from '../lib/types'
 
 export default function Worth() {
   const s = useData()
@@ -18,6 +20,7 @@ export default function Worth() {
   const hist = months.map((m) => (m === THIS_MONTH ? { own: w.own, owe: w.owe } : s.history[m]))
   const first = hist.find(Boolean)
   const change = first ? w.net - (first.own - first.owe) : 0
+  const emis = (s.emis ?? []).map((e) => ({ e, owed: emiStatus(e).owed })).filter((x) => x.owed > 0)
   const invested = sum(s.holdings.filter((h) => h.kind === 'own' && h.group === 'Investments').map((h) => +h.value))
 
   const [fc, setFc] = useState(s.settings.forecast)
@@ -40,12 +43,20 @@ export default function Worth() {
 
   const groups: Record<string, typeof s.holdings> = {}
   s.holdings.filter((h) => h.kind === 'own').forEach((h) => (groups[h.group] ??= []).push(h))
-  const Row = ({ name, sub, v, neg, onClick }: { name: string; sub: string; v: number; neg?: boolean; onClick?: () => void }) => (
-    <button type="button" onClick={onClick} disabled={!onClick} className="flex w-full items-center gap-3 rounded-2xl px-2 py-2.5 text-left transition-colors enabled:hover:bg-surface2">
-      <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{name}</span><span className="block text-[12.5px] text-muted">{sub}</span></span>
-      <span className={`tnum font-bold ${neg ? 'text-bad' : ''}`}>{neg ? '−' : ''}{money(Math.abs(v))}</span>
-      {onClick && <ChevronRight size={16} className="text-muted" />}
-    </button>
+  /** Remove something from the list, after a check. Undo is offered straight after. */
+  const remove = (name: string, what: string, fn: (d: State) => void) => open({
+    type: 'confirm', title: `Delete ${name}?`, label: 'Delete', text: `${name} will be removed from ${what}. Your net worth updates straight away. You can undo right after.`,
+    run: () => { const prev = update(fn); toast(`${name} deleted`, prev) },
+  })
+  const Row = ({ name, sub, v, neg, onClick, onDelete }: { name: string; sub: string; v: number; neg?: boolean; onClick?: () => void; onDelete?: () => void }) => (
+    <div className="group flex items-center gap-1 rounded-2xl transition-colors hover:bg-surface2">
+      <button type="button" onClick={onClick} disabled={!onClick} className="flex min-w-0 flex-1 items-center gap-3 px-2 py-2.5 text-left">
+        <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{name}</span><span className="block text-[12.5px] text-muted">{sub}</span></span>
+        <span className={`tnum font-bold ${neg ? 'text-bad' : ''}`}>{neg ? '−' : ''}{money(Math.abs(v))}</span>
+        {onClick && <ChevronRight size={16} className="text-muted" />}
+      </button>
+      {onDelete && <button type="button" onClick={onDelete} aria-label={`Delete ${name}`} title="Delete" className="mr-1 grid h-8 w-8 shrink-0 place-items-center rounded-lg text-muted hover:bg-bad-soft hover:text-bad"><Trash2 size={15} /></button>}
+    </div>
   )
 
   return (
@@ -66,7 +77,7 @@ export default function Worth() {
       </motion.section>
 
       <Card i={1} className="col-span-12 xl:col-span-7">
-        <CardHead title="Over the last year" sub="Tally saves a snapshot every month you use it" />
+        <CardHead title="Over the last year" sub="SpendCop saves a snapshot every month you use it" />
         <TimeChart data={months.map((m, i) => ({ label: monthName(m, false), net: hist[i] ? Math.round(hist[i]!.own - hist[i]!.owe) : null }))} x="label" height={250}
           series={[{ key: 'net', name: "What you're worth", color: 'var(--s3)', area: true }]} />
       </Card>
@@ -76,15 +87,17 @@ export default function Worth() {
         <p className="label px-2">Bank accounts</p>
         {s.accounts.map((a) => <Row key={a.id} name={a.name} sub="Updates from your activity" v={bal[a.id] || 0} neg={(bal[a.id] || 0) < 0} onClick={() => open({ type: 'account', id: a.id })} />)}
         {Object.entries(groups).map(([g, l]) => (
-          <div key={g} className="mt-2"><p className="label px-2">{g}</p>{l.map((h) => <Row key={h.id} name={h.name} sub="Update the value now and then" v={+h.value} onClick={() => open({ type: 'holding', id: h.id })} />)}</div>
+          <div key={g} className="mt-2"><p className="label px-2">{g}</p>{l.map((h) => <Row key={h.id} name={h.name} sub="Update the value now and then" v={+h.value} onClick={() => open({ type: 'holding', id: h.id })} onDelete={() => remove(h.name, 'what you own', (d) => { d.holdings = d.holdings.filter((x) => x.id !== h.id) })} />)}</div>
         ))}
       </Card>
 
       <Card i={3} className="col-span-12 md:col-span-6">
         <CardHead title="What you owe" right={<Button size="sm" onClick={() => open({ type: 'holding', kind: 'owe' })}><Plus size={15} />Add</Button>} />
-        {s.debts.length > 0 && <><p className="label px-2">Loans and cards</p>{s.debts.map((d) => <Row key={d.id} name={d.name} sub={`${d.rate}% interest`} v={+d.balance} neg onClick={() => go('debts')} />)}</>}
-        {s.holdings.filter((h) => h.kind === 'owe').map((h) => <Row key={h.id} name={h.name} sub={h.group} v={+h.value} neg onClick={() => open({ type: 'holding', id: h.id })} />)}
-        {!s.debts.length && !s.holdings.some((h) => h.kind === 'owe') && <p className="px-2 py-6 text-center text-ink2">You don't owe anything. Brilliant.</p>}
+        {s.debts.length > 0 && <><p className="label px-2">Debts</p>{s.debts.map((d) => <Row key={d.id} name={d.name} sub={`${d.rate}% interest`} v={+d.balance} neg onClick={() => go('debts')} onDelete={() => remove(d.name, 'your debts', (x) => { x.debts = x.debts.filter((y) => y.id !== d.id) })} />)}</>}
+        {emis.length > 0 && <><p className="label mt-2 px-2">Loans & EMIs</p>{emis.map(({ e, owed }) => <Row key={e.id} name={e.name} sub={e.kind === 'card' ? 'Card EMI · remove it on the Loans & EMIs page' : 'Loan · remove it on the Loans & EMIs page'} v={owed} neg onClick={() => open({ type: 'emi', id: e.id })} />)}</>}
+        {s.holdings.some((h) => h.kind === 'owe') && <p className="label mt-2 px-2">Other</p>}
+        {s.holdings.filter((h) => h.kind === 'owe').map((h) => <Row key={h.id} name={h.name} sub={h.group} v={+h.value} neg onClick={() => open({ type: 'holding', id: h.id })} onDelete={() => remove(h.name, 'what you owe', (d) => { d.holdings = d.holdings.filter((x) => x.id !== h.id) })} />)}
+        {!s.debts.length && !emis.length && !s.holdings.some((h) => h.kind === 'owe') && <p className="px-2 py-6 text-center text-ink2">You don't owe anything. Brilliant.</p>}
       </Card>
 
       <Card i={4} className="col-span-12 lg:col-span-5">

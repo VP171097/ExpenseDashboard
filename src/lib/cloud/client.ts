@@ -1,5 +1,5 @@
 /**
- * The connection to your Supabase project. Accounts, sync and Ask Tally only switch on when a
+ * The connection to your Supabase project. Accounts, sync and Ask SpendCop only switch on when a
  * project is configured, either at build time (VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY) or in
  * Settings. supabase-js is downloaded only then, so the app stays small for local-only use.
  */

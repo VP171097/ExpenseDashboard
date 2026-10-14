@@ -1,4 +1,4 @@
--- Tally cloud storage: one private row per user holding their Tally data.
+-- SpendCop cloud storage: one private row per user holding their SpendCop data.
 -- Row-level security means each signed-in user can only ever read or change their own row.
 
 create table if not exists public.tally_data (

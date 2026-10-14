@@ -16,6 +16,7 @@ export function upgrade(d: State | null): State | null {
   d.settings.payDays ??= 14
   d.settings.effects ??= 'full'
   d.emis ??= []
+  d.settings.salaryNextMonth ??= true
   d.settings.offDays ??= [0, 6]
   // copies from before payday rules: keep paying on the day of the month already set
   d.settings.payday ??= { rule: 'date', day: +d.settings.payAnchor.slice(8, 10) || 1, shift: 'before' }
@@ -74,7 +75,7 @@ let queued: State | null = null
 useStore.subscribe((s) => { queued = s.data })
 onSave((ok, _where, error) => {
   if (ok) { confirmed = queued; if (useStore.getState().saveError) useStore.setState({ saveError: null }); return }
-  const msg = error === 'quota' ? 'This browser is out of storage space for Tally.' : 'This browser would not let Tally save.'
+  const msg = error === 'quota' ? 'This browser is out of storage space for SpendCop.' : 'This browser would not let SpendCop save.'
   const cur = useStore.getState().data
   if (confirmed && cur !== confirmed) useStore.setState({ data: confirmed })
   useStore.setState({ saveError: msg })

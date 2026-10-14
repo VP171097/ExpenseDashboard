@@ -22,7 +22,7 @@ const device = () => {
 
 /** Database errors in plain words. */
 function plain(message: string) {
-  if (/PGRST20[25]|schema cache|tally_data|tally_save/.test(message)) return "Your Supabase project doesn't have Tally's table yet. Run the setup SQL from the README (step 2), then tap Sync now."
+  if (/PGRST20[25]|schema cache|tally_data|tally_save/.test(message)) return "Your Supabase project doesn't have SpendCop's table yet. Run the setup SQL from the README (step 2), then tap Sync now."
   if (/JWT|permission denied|401/.test(message)) return 'Your login has expired. Log out and log in again.'
   return message
 }

@@ -2,6 +2,7 @@ import { ChevronRight, Compass, Database, Eraser, FileSpreadsheet, FileText, Moo
 import { saveFile, workbook } from '../lib/files'
 import { addMonthsDate, fmtDate, iso, monthName, NOW, paydaysBetween, THIS_MONTH, TODAY, WEEKDAYS } from '../lib/dates'
 import { useLegal } from '../lib/entry'
+import ReportButton from '../components/ReportButton'
 import { useEffect, useState } from 'react'
 import { storageEstimate } from '../lib/storage'
 import { Button, Card, CardHead, CatIcon, Field, Segmented, Switch } from '../components/ui'
@@ -21,6 +22,7 @@ export default function Settings() {
   const open = useUI((u) => u.open)
   const go = useUI((u) => u.go)
   const [people, setPeople] = useState(s.people.join(', '))
+  const [reportMonth, setReportMonth] = useState(THIS_MONTH)
   const set = (fn: (x: S) => void) => update((d) => fn(d.settings))
   const signedIn = useAuth((a) => a.status === 'signed-in')
   const aiOn = useAi((a) => a.enabled) && signedIn
@@ -41,7 +43,7 @@ export default function Settings() {
           <Segmented label="Theme" value={s.settings.theme} onChange={(v) => set((x) => { x.theme = v })}
             options={[['light', <><Sun size={15} />Light</>], ['dark', <><Moon size={15} />Dark</>], ['system', <><SunMoon size={15} />Match device</>]]} />
           <div className="mt-4 flex items-start justify-between gap-4 rounded-2xl border border-line p-4">
-            <div><p className="font-semibold text-ink">Reduced effects</p><p className="text-[13.5px] text-ink2">Turns off 3D scenes, card tilt, floating coins and confetti. Numbers and actions stay the same. Tally also does this automatically if your device asks for less motion.</p></div>
+            <div><p className="font-semibold text-ink">Reduced effects</p><p className="text-[13.5px] text-ink2">Turns off 3D scenes, card tilt, floating coins and confetti. Numbers and actions stay the same. SpendCop also does this automatically if your device asks for less motion.</p></div>
             <Switch checked={s.settings.effects === 'reduced'} label="Reduced effects" onChange={(v) => set((x) => { x.effects = v ? 'reduced' : 'full' })} />
           </div>
         </div>
@@ -84,14 +86,15 @@ export default function Settings() {
       </Card>
 
       <Card i={3} className="col-span-12 lg:col-span-6">
-        <CardHead title="Your data" sub={signedIn ? 'Saved in this browser and synced to your account.' : aiOn ? 'Saved in this browser. Ask Tally sends a summary only when you ask.' : 'Everything stays in this browser on this device. Nothing is sent anywhere.'} />
+        <CardHead title="Your data" sub={signedIn ? 'Saved in this browser and synced to your account.' : aiOn ? 'Saved in this browser. Ask SpendCop sends a summary only when you ask.' : 'Everything stays in this browser on this device. Nothing is sent anywhere.'} />
         <div className="mb-4 rounded-2xl bg-surface2 p-3.5 text-[13.5px] leading-relaxed text-ink2">
-          <p>Tally keeps your data in this browser's own storage. It is <b className="text-ink">private but not encrypted</b>, and it can be lost if you clear your browsing data, use a private window, or lose this device. Download a full backup now and then.</p>
+          <p>SpendCop keeps your data in this browser's own storage. It is <b className="text-ink">private but not encrypted</b>, and it can be lost if you clear your browsing data, use a private window, or lose this device. Download a full backup now and then.</p>
           <p className="mt-1.5 font-semibold text-ink">{s.settings.lastBackup ? `Last backup: ${new Date(s.settings.lastBackup).toLocaleDateString()}` : 'No backup downloaded yet.'}{est ? ` · Using ${(est.used / 1048576).toFixed(1)} MB of storage` : ''}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button variant="primary" onClick={async () => { const r = await saveFile(`tally-${THIS_MONTH.slice(0, 4)}.xlsx`, await workbook(s, +THIS_MONTH.slice(0, 4))); toast(r === 'saved' ? 'Your Excel workbook is ready' : r === 'declined' ? 'Download cancelled' : 'Could not save the file here') }}><FileSpreadsheet size={16} />Download Excel workbook</Button>
+          <Button variant="primary" onClick={async () => { const r = await saveFile(`spendcop-${THIS_MONTH.slice(0, 4)}.xlsx`, await workbook(s, +THIS_MONTH.slice(0, 4))); toast(r === 'saved' ? 'Your Excel workbook is ready' : r === 'declined' ? 'Download cancelled' : 'Could not save the file here') }}><FileSpreadsheet size={16} />Download Excel workbook</Button>
           <Button onClick={() => open({ type: 'backup' })}><Download size={16} />Back up or export</Button>
+          <span className="inline-flex items-center gap-2"><input className="field !w-[150px] !py-2" type="month" value={reportMonth} onChange={(e) => e.target.value && setReportMonth(e.target.value)} aria-label="Report month" /><ReportButton month={reportMonth} label /></span>
           <Button onClick={() => { go('home'); setTimeout(() => useUI.getState().setTour(true), 300) }}><Compass size={16} />Take the tour again</Button>
           <Button onClick={() => open({ type: 'csv' })}><Upload size={16} />Import from my bank</Button>
         </div>
@@ -105,7 +108,7 @@ export default function Settings() {
       <AccountCard />
       <AiCard />
       <Card i={4} className="col-span-12">
-        <CardHead title="Legal" sub="How Tally handles your information, and the terms for using it" />
+        <CardHead title="Legal" sub="How SpendCop handles your information, and the terms for using it" />
         <div className="flex flex-wrap gap-2">
           <Button onClick={() => useLegal.getState().open('privacy')}><ShieldCheck size={16} />Privacy policy</Button>
           <Button onClick={() => useLegal.getState().open('terms')}><FileText size={16} />Terms & conditions</Button>
@@ -158,6 +161,10 @@ function PaydayCard() {
             })}
           </div>
           <p className="mt-1.5 text-[12.5px] text-muted">{off.length ? `Days off: ${off.map((d) => WEEKDAYS[d].long).join(', ')}.` : 'You work every day of the week.'}</p>
+        </div>
+        <div className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4">
+          <div><p className="font-semibold">Month-end salary is for next month</p><p className="text-[13.5px] text-ink2">Salary that arrives in the last week of a month, like on the last working day, counts as next month's money in. Your bank balance still changes on the day it arrives.</p></div>
+          <Switch checked={!!st.salaryNextMonth} label="Month-end salary is for next month" onChange={(v) => update((d) => { d.settings.salaryNextMonth = v })} />
         </div>
         {monthly && (
           <>

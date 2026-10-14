@@ -1,4 +1,4 @@
-/** Settings: account and sync, and Ask Tally. */
+/** Settings: account and sync, and Ask SpendCop. */
 import { Bot, Cloud, CloudOff, KeyRound, LogIn, LogOut, RefreshCw, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { setAi, useAi } from '../lib/ai/ask'
@@ -22,8 +22,8 @@ export function AccountCard() {
   const when = sync.kind === 'synced' ? new Date(sync.at).toLocaleTimeString(undefined, { timeStyle: 'short' }) : ''
 
   const signOut = () => open({
-    type: 'confirm', title: 'Log out of Tally?', label: 'Log out',
-    text: 'Your money stays on this device so you can keep using Tally. To remove it from this device too (for example on a shared computer), use "Log out and clear this device" instead.',
+    type: 'confirm', title: 'Log out of SpendCop?', label: 'Log out',
+    text: 'Your money stays on this device so you can keep using SpendCop. To remove it from this device too (for example on a shared computer), use "Log out and clear this device" instead.',
     run: () => { void logOut(); toast('Logged out. Your data is still on this device.') },
   })
   const signOutClear = () => open({
@@ -44,10 +44,10 @@ export function AccountCard() {
 
   return (
     <Card className="col-span-12 lg:col-span-6">
-      <CardHead title="Account & sync" sub="Optional. Use Tally on more than one device." />
+      <CardHead title="Account & sync" sub="Optional. Use SpendCop on more than one device." />
       {auth.status === 'off' ? <ConnectProject /> : auth.status !== 'signed-in' ? (
         <div className="flex flex-col gap-3">
-          <p className="text-[14.5px] text-ink2">You're using Tally without an account. Everything is saved in this browser only. Log in to back it up and see it on your phone and laptop.</p>
+          <p className="text-[14.5px] text-ink2">You're using SpendCop without an account. Everything is saved in this browser only. Log in to back it up and see it on your phone and laptop.</p>
           <div className="flex flex-wrap gap-2">
             <Button variant="primary" onClick={() => useEntry.getState().go('auth', 'login')}><LogIn size={16} />Log in</Button>
             <Button onClick={() => useEntry.getState().go('auth', 'signup')}>Create account</Button>
@@ -73,7 +73,7 @@ export function AccountCard() {
             </span>
             <Button size="sm" onClick={() => void syncNow()}><RefreshCw size={14} />Sync now</Button>
           </div>
-          <p className="text-[12.5px] text-muted">Your copy is stored in your Tally cloud database, where only your login can read it. It is not end-to-end encrypted.</p>
+          <p className="text-[12.5px] text-muted">Your copy is stored in your SpendCop cloud database, where only your login can read it. It is not end-to-end encrypted.</p>
           <div className="flex flex-wrap gap-2">
             <Button onClick={signOut}><LogOut size={16} />Log out</Button>
             <Button variant="ghost" onClick={signOutClear}>Log out and clear this device</Button>
@@ -86,7 +86,7 @@ export function AccountCard() {
   )
 }
 
-/** For self-hosted copies: point Tally at your own Supabase project. */
+/** For self-hosted copies: point SpendCop at your own Supabase project. */
 function ConnectProject({ compact = false }: { compact?: boolean }) {
   const cur = cloudConfig()
   const [show, setShow] = useState(!compact)
@@ -102,7 +102,7 @@ function ConnectProject({ compact = false }: { compact?: boolean }) {
   if (compact && !show) return <button type="button" onClick={() => setShow(true)} className="flex w-fit items-center gap-1.5 text-[13px] font-semibold text-ink2 hover:text-ink"><KeyRound size={14} />Use a different Supabase project</button>
   return (
     <div className="flex flex-col gap-3">
-      {!compact && <p className="text-[14.5px] text-ink2">Accounts aren't switched on for this copy of Tally. To add them, create a free Supabase project, run the setup in the README, then enter its details here.</p>}
+      {!compact && <p className="text-[14.5px] text-ink2">Accounts aren't switched on for this copy of SpendCop. To add them, create a free Supabase project, run the setup in the README, then enter its details here.</p>}
       <div className="grid gap-3 sm:grid-cols-2">
         <Field label="Supabase project URL"><input className="field" value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://abcd.supabase.co" /></Field>
         <Field label="Anon public key"><input className="field" value={key} onChange={(e) => setKey(e.target.value)} placeholder="eyJhbGciOi…" /></Field>
@@ -121,23 +121,23 @@ export function AiCard() {
   const size = contextText(s, { notes: ai.notes }).length
   return (
     <Card i={1} className="col-span-12 lg:col-span-6">
-      <CardHead title={<span className="flex items-center gap-2"><Bot size={18} className="text-accent" />Ask Tally</span>} sub="Plain-language answers about your own money" />
+      <CardHead title={<span className="flex items-center gap-2"><Bot size={18} className="text-accent" />Ask SpendCop</span>} sub="Plain-language answers about your own money" />
       <p className="mb-4 rounded-2xl bg-accent-soft p-3.5 text-[14px]"><b>Instant answers are always on.</b> Questions like "Can I afford this?", "Why is my score low?" or "Where can I cut back?" are answered straight away on this device.</p>
       <div className="flex flex-col gap-3 text-[14px]">
         <div className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4">
-          <div><p className="font-semibold">Tally AI for other questions</p><p className="text-[13px] text-ink2">{auth === 'off' ? 'Needs accounts switched on.' : auth === 'signed-in' ? 'Questions the instant answers can\'t handle are answered by Tally AI (Google Gemini).' : 'Log in to use it. Questions the instant answers can\'t handle are answered by Tally AI (Google Gemini).'}</p></div>
-          <Switch checked={ai.enabled} label="Tally AI for other questions" onChange={(v) => setAi({ enabled: v })} />
+          <div><p className="font-semibold">SpendCop AI for other questions</p><p className="text-[13px] text-ink2">{auth === 'off' ? 'Needs accounts switched on.' : auth === 'signed-in' ? 'Questions the instant answers can\'t handle are answered by SpendCop AI (Google Gemini).' : 'Log in to use it. Questions the instant answers can\'t handle are answered by SpendCop AI (Google Gemini).'}</p></div>
+          <Switch checked={ai.enabled} label="SpendCop AI for other questions" onChange={(v) => setAi({ enabled: v })} />
         </div>
         {ai.enabled && (
           <div className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4">
-            <div><p className="font-semibold">Include entry descriptions</p><p className="text-[13px] text-ink2">Lets Tally AI see what recent entries were for (like "Coffee with Sam"). Turn off to share amounts and categories only.</p></div>
+            <div><p className="font-semibold">Include entry descriptions</p><p className="text-[13px] text-ink2">Lets SpendCop AI see what recent entries were for (like "Coffee with Sam"). Turn off to share amounts and categories only.</p></div>
             <Switch checked={ai.notes} label="Include entry descriptions" onChange={(v) => setAi({ notes: v })} />
           </div>
         )}
-        <p className="flex items-center gap-2 text-[13px] text-ink2"><ShieldCheck size={15} className="text-good" />{ai.enabled ? `Sent only for questions the instant answers can't handle: a summary of about ${Math.round(size / 1000)} KB. Tally AI can't change anything.` : 'Nothing is sent to any AI.'}</p>
+        <p className="flex items-center gap-2 text-[13px] text-ink2"><ShieldCheck size={15} className="text-good" />{ai.enabled ? `Sent only for questions the instant answers can't handle: a summary of about ${Math.round(size / 1000)} KB. SpendCop AI can't change anything.` : 'Nothing is sent to any AI.'}</p>
         {ai.enabled && <button type="button" onClick={() => setPeek((v) => !v)} className="w-fit text-[13.5px] font-semibold text-accent" aria-expanded={peek}>{peek ? 'Hide' : 'See exactly what would be shared'}</button>}
         {peek && ai.enabled && <pre className="max-h-72 overflow-auto rounded-xl border border-line bg-surface2/60 p-3 text-[11px] leading-snug">{JSON.stringify(JSON.parse(contextText(s, { notes: ai.notes })), null, 2)}</pre>}
-        <Button className="w-fit" onClick={() => openAsk()}><Bot size={16} />Open Ask Tally</Button>
+        <Button className="w-fit" onClick={() => openAsk()}><Bot size={16} />Open Ask SpendCop</Button>
       </div>
     </Card>
   )

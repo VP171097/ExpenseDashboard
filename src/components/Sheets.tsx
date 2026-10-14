@@ -9,7 +9,7 @@ import { emiRule, emiStatus } from '../lib/emi'
 import { addDays, addMonthsDate, fmtDate, iso, NOW, THIS_MONTH, TODAY } from '../lib/dates'
 import { balances } from '../lib/calc'
 import { checkBackup, commitImport, prepareImport, toCsv, type ImportPlan } from '../lib/io'
-import { money, symbol } from '../lib/money'
+import { money, money2, symbol } from '../lib/money'
 import { replaceData, toast, update, useData, useStore, useUI, type SheetSpec, type View } from '../lib/store'
 import type { Category, Emi, Freq, Kind, State } from '../lib/types'
 import { Button, CatIcon, celebrate, Field, ICONS, Segmented, Sheet } from './ui'
@@ -31,7 +31,7 @@ export default function Sheets() {
     emi: spec?.type === 'emi' && spec.id ? 'Edit loan or EMI' : spec?.type === 'emi' && spec.kind === 'card' ? 'Add a card EMI' : 'Add a loan',
     holding: spec?.type === 'holding' && spec.id ? 'Edit' : spec?.type === 'holding' && spec.kind === 'owe' ? 'Add something you owe' : 'Add something you own',
     account: spec?.type === 'account' && spec.id ? 'Edit account' : 'Add account', category: spec?.type === 'category' && spec.id ? 'Edit category' : 'New category',
-    help: 'Help & simple answers', more: 'Everything in Tally', csv: 'Import from your bank', backup: 'Back up & export', confirm: spec?.type === 'confirm' ? spec.title : '',
+    help: 'Help & simple answers', more: 'Everything in SpendCop', csv: 'Import from your bank', backup: 'Back up & export', confirm: spec?.type === 'confirm' ? spec.title : '',
     occ: 'This payment', transfer: spec?.type === 'transfer' && spec.id ? 'Edit transfer' : 'Move money between accounts',
   }
   return (
@@ -507,7 +507,7 @@ function EmiForm({ id, kind }: { id?: string; kind?: 'loan' | 'card' }) {
       </div>
       {st && (
         <div className="rounded-2xl bg-accent-soft p-4 text-[14px]" aria-live="polite">
-          <p>Your EMI: <b className="font-display text-[20px]">{money(st.emi)}</b> a month for {months} months</p>
+          <p>Your EMI: <b className="font-display text-[20px]">{money2(st.emi)}</b> a month for {months} months</p>
           <ul className="mt-2 grid gap-1 text-[13.5px] sm:grid-cols-2">
             <li>Total interest: <b>{money(st.interestTotal)}</b></li>
             <li>Total you'll pay: <b>{money(st.totalPayable)}</b></li>
@@ -518,7 +518,7 @@ function EmiForm({ id, kind }: { id?: string; kind?: 'loan' | 'card' }) {
           </ul>
         </div>
       )}
-      <Field label="EMI on your statement (optional)" hint="If your lender's EMI is slightly different, enter it here and Tally will use it."><input className="field" type="number" min="0" step="any" inputMode="decimal" value={own} onChange={(e) => setOwn(e.target.value)} /></Field>
+      <Field label="EMI on your statement (optional)" hint="If your lender's EMI is slightly different, enter it here and SpendCop will use it."><input className="field" type="number" min="0" step="any" inputMode="decimal" value={own} onChange={(e) => setOwn(e.target.value)} /></Field>
       <Err msg={err} />
       <Foot>
         {x && <Button variant="danger" className="mr-auto" onClick={remove}><Trash2 size={16} />Remove</Button>}
@@ -644,11 +644,11 @@ function CategoryForm({ id }: { id?: string }) {
 
 /* ---------------- help ---------------- */
 const FAQ: [string, string][] = [
-  ['What is "Safe to spend"?', "It's the money that's really free this month. Tally takes everything coming in, then subtracts what you've spent, what you've put aside and the bills that still have to go out. If you only spend from this number, your bills are always covered."],
+  ['What is "Safe to spend"?', "It's the money that's really free this month. SpendCop takes everything coming in, then subtracts what you've spent, what you've put aside and the bills that still have to go out. If you only spend from this number, your bills are always covered."],
   ['How do I track a trip or holiday?', 'Open Trips and create one with its dates and, if you like, a budget. Then, whenever you add an expense, tap the trip under "Part of a trip?". The expense still shows in Activity, your month and your plan as normal, with the trip\'s name next to it, and the trip page adds everything up: spent, left, per day, by category and who paid.'],
   ['How do I add something I bought?', 'Tap the big + button. Pick what it was (like Groceries), type the amount, and tap Add. That\'s it. You can press N on a keyboard too.'],
   ['What are regular items?', 'Things that repeat, like rent, your phone bill, subscriptions and your pay. Add them once under Bills and they appear every month by themselves. When one is paid, tap its tick box.'],
-  ['What is a plan (budget)?', "A plan is how much you'd like to spend on each thing in a month. Tally shows how much is left in each 'pot' so you can slow down before you run out. Not sure what to plan? Tap 'Use this' to copy what you usually spend."],
+  ['What is a plan (budget)?', "A plan is how much you'd like to spend on each thing in a month. SpendCop shows how much is left in each 'pot' so you can slow down before you run out. Not sure what to plan? Tap 'Use this' to copy what you usually spend."],
   ['Essentials, extras and future you?', 'Essentials are needs (home, food shopping, energy). Extras are nice-to-haves (eating out, shopping, fun). Future you is money you save or invest. A common guide is 50% / 30% / 20%.'],
   ['What does the money health score mean?', 'A quick score out of 100 based on four good habits: staying within your plan, saving regularly, paying bills on time and having a safety cushion of about three months of essentials.'],
   ['Cheapest way or quick wins for debts?', 'Both pay the minimum on every debt. "Cheapest way" puts extra money on the debt with the highest interest, so you pay least overall. "Quick wins" clears the smallest debt first, which feels great and keeps you motivated.'],
@@ -657,7 +657,7 @@ const FAQ: [string, string][] = [
   ['Moving money or paying off a card', "Use Accounts → Move money. Moving money between your own accounts isn't spending, so it doesn't count against your plan. 'Pay off card' fills in what you owe."],
   ['One bill was different this month', 'Tap the bill in Activity, Calendar or Bills. You can change the amount or date for just that one, skip it, or mark it paid. The others stay the same.'],
   ['What are sub-categories?', 'Smaller groups inside a category, like Fuel and Parking inside Getting around. Pick one when you add spending, then see totals for each in Activity and My plan.'],
-  ['I added something twice', "Tally warns you before you add the same amount for the same thing on nearly the same day, and marks possible doubles in Activity with 'twice?'."],
+  ['I added something twice', "SpendCop warns you before you add the same amount for the same thing on nearly the same day, and marks possible doubles in Activity with 'twice?'."],
   ['Can I open my data in Excel or Google Sheets?', 'Yes. Go to My year or Settings and tap "Download Excel workbook". It has sheets for your year, categories, every transaction, bills, accounts, goals, debts and net worth. Google Sheets opens it via File → Import.'],
   ['Where is my data kept?', 'Only in this browser, on this device. Nothing is sent to a server. Use Settings → Back up to save a copy or move it to another device.'],
 ]
@@ -813,7 +813,7 @@ function CsvImport() {
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded-2xl bg-good-soft p-3"><p className="font-display text-[24px] font-bold text-good">{plan.rows.length.toLocaleString()}</p><p className="text-[12.5px] text-ink2">rows look good</p></div>
-          <div className="rounded-2xl bg-warn-soft p-3"><p className="font-display text-[24px] font-bold text-warn">{plan.dupCount.toLocaleString()}</p><p className="text-[12.5px] text-ink2">may already be in Tally</p></div>
+          <div className="rounded-2xl bg-warn-soft p-3"><p className="font-display text-[24px] font-bold text-warn">{plan.dupCount.toLocaleString()}</p><p className="text-[12.5px] text-ink2">may already be in SpendCop</p></div>
           <div className="rounded-2xl bg-bad-soft p-3"><p className="font-display text-[24px] font-bold text-bad">{plan.invalid.length.toLocaleString()}</p><p className="text-[12.5px] text-ink2">can't be read</p></div>
         </div>
         <div className="-mx-6 overflow-x-auto px-6">
@@ -828,14 +828,14 @@ function CsvImport() {
         {plan.invalid.length > 0 && <details className="rounded-2xl border border-line p-3 text-[13px]"><summary className="cursor-pointer font-semibold text-bad">Rows that will be left out ({plan.invalid.length})</summary><ul className="mt-2 max-h-32 overflow-auto text-ink2">{plan.invalid.slice(0, 50).map((x) => <li key={x.line}>Line {x.line}: {x.reason}</li>)}</ul></details>}
         {plan.newCats.length > 0 && <p className="text-[13px] text-ink2">New categories will be created: {plan.newCats.slice(0, 8).join(', ')}{plan.newCats.length > 8 ? '…' : ''}</p>}
         {plan.newTrips.length > 0 && <p className="text-[13px] text-ink2">New trips will be created from the Trip column: {plan.newTrips.slice(0, 6).join(', ')}{plan.newTrips.length > 6 ? '…' : ''}</p>}
-        {plan.dupCount > 0 && <label className="flex items-center gap-2 text-[14px] font-medium"><input type="checkbox" checked={skipDupes} onChange={(e) => setSkipDupes(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /> Skip the {plan.dupCount} that may already be in Tally (same date and amount)</label>}
+        {plan.dupCount > 0 && <label className="flex items-center gap-2 text-[14px] font-medium"><input type="checkbox" checked={skipDupes} onChange={(e) => setSkipDupes(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /> Skip the {plan.dupCount} that may already be in SpendCop (same date and amount)</label>}
         <Foot><Button variant="ghost" className="mr-auto" onClick={() => setPlan(null)}>Back</Button><Button variant="primary" onClick={commit} disabled={!adding}>Import {adding.toLocaleString()} item{adding === 1 ? '' : 's'}</Button></Foot>
       </div>
     )
   }
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[14.5px] text-ink2">Most banks let you download your transactions as a CSV file. Choose that file here. Tally reads the date, description and amount (and category, type or person if present). Negative amounts count as money out. You'll see a preview before anything is added.</p>
+      <p className="text-[14.5px] text-ink2">Most banks let you download your transactions as a CSV file. Choose that file here. SpendCop reads the date, description and amount (and category, type or person if present). Negative amounts count as money out. You'll see a preview before anything is added.</p>
       <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-line2 p-6 text-center hover:border-accent">
         <Upload className="text-accent" /><span className="font-semibold">Choose a CSV file</span><span className="text-[13px] text-muted">or paste the text below</span>
         <input type="file" accept=".csv,text/csv,text/plain" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => setText(String(r.result)); r.readAsText(f) }} />
@@ -856,8 +856,8 @@ function Backup() {
   const ref = useRef<HTMLTextAreaElement>(null)
   const copy = () => navigator.clipboard?.writeText(text).then(() => { if (tab === 'json') update((d) => { d.settings.lastBackup = new Date().toISOString() }); toast('Copied') }, () => { ref.current?.select(); toast('Press Ctrl+C (or ⌘C) to copy') }) ?? (ref.current?.select(), toast('Press Ctrl+C (or ⌘C) to copy'))
   const download = async () => {
-    const r = tab === 'excel' ? await saveFile(`tally-${THIS_MONTH.slice(0, 4)}.xlsx`, await workbook(s, +THIS_MONTH.slice(0, 4)))
-      : await saveFile(tab === 'csv' ? 'tally-activity.csv' : 'tally-backup.json', text)
+    const r = tab === 'excel' ? await saveFile(`spendcop-${THIS_MONTH.slice(0, 4)}.xlsx`, await workbook(s, +THIS_MONTH.slice(0, 4)))
+      : await saveFile(tab === 'csv' ? 'spendcop-activity.csv' : 'spendcop-backup.json', text)
     if (r === 'saved' && tab === 'json') update((d) => { d.settings.lastBackup = new Date().toISOString() })
     toast(r === 'saved' ? 'File ready' : r === 'declined' ? 'Download cancelled' : 'Downloads are blocked here. Use Copy instead.')
   }
@@ -885,20 +885,20 @@ function Backup() {
         </>
       ) : tab === 'restore' ? (
         <>
-          <p className="text-[14.5px] text-ink2">Paste a full backup here. It replaces what's in Tally now.</p>
+          <p className="text-[14.5px] text-ink2">Paste a full backup here. It replaces what's in SpendCop now.</p>
           <textarea className="field min-h-[160px] font-mono text-[12px]" value={paste} onChange={(e) => setPaste(e.target.value)} aria-label="Backup text" />
           <Err msg={err} />
           {found ? (
             <div className="rounded-2xl border border-warn bg-warn-soft p-4 text-[14px]">
               <p className="font-semibold">This backup has {found.summary}</p>
-              <p className="mt-1 text-ink2">Restoring replaces everything in Tally now. You can undo straight afterwards.</p>
+              <p className="mt-1 text-ink2">Restoring replaces everything in SpendCop now. You can undo straight afterwards.</p>
               <Foot><Button variant="ghost" onClick={() => setFound(null)}>Cancel</Button><Button variant="danger" onClick={confirmRestore}>Replace my data</Button></Foot>
             </div>
           ) : <Foot><Button variant="primary" onClick={restore}>Check backup</Button></Foot>}
         </>
       ) : (
         <>
-          <p className="text-[14.5px] text-ink2">{tab === 'csv' ? 'Everything you have paid or received, ready for Excel or Google Sheets.' : 'A complete copy of your Tally. Keep it somewhere safe, or use it to move to another device.'}</p>
+          <p className="text-[14.5px] text-ink2">{tab === 'csv' ? 'Everything you have paid or received, ready for Excel or Google Sheets.' : 'A complete copy of your SpendCop. Keep it somewhere safe, or use it to move to another device.'}</p>
           <textarea ref={ref} readOnly className="field min-h-[160px] font-mono text-[12px]" value={text} aria-label="Export text" />
           <Foot><Button onClick={download}><Download size={16} />Download</Button><Button variant="primary" onClick={copy}><Copy size={16} />Copy</Button></Foot>
         </>

@@ -1,5 +1,5 @@
 /**
- * Built-in answers: the common money questions, answered instantly on this device from Tally's
+ * Built-in answers: the common money questions, answered instantly on this device from SpendCop's
  * own calculations. No AI, no network, nothing leaves the device. Questions it can't answer
  * return null, and the caller can hand them to an AI if one is connected.
  */

@@ -61,7 +61,7 @@ export async function prepareImport(s: State, text: string, onProgress?: (done: 
   const ci = { date: col('date'), note: col('desc', 'note', 'memo', 'payee', 'name', 'details'), amt: col('amount', 'value', 'sum'), type: col('type'), cat: col('category'), sub: col('sub'), person: col('person', 'who'), trip: col('trip', 'holiday') }
   if (ci.sub === ci.cat) ci.sub = -1
   if (ci.date < 0 || ci.amt < 0) return 'The file needs at least a Date column and an Amount column.'
-  // existing entries, for spotting rows that are already in Tally
+  // existing entries, for spotting rows that are already in SpendCop
   const seen = new Set(s.tx.map((t) => `${t.date}|${cents(t.amount)}`))
   const plan: ImportPlan = { rows: [], invalid: [], newCats: [], dupCount: 0, newTrips: [] }
   const knownTrips = new Set((s.trips ?? []).map((t) => t.name.toLowerCase()))
@@ -99,7 +99,7 @@ export function commitImport(d: State, plan: ImportPlan, skipDupes: boolean) {
   const byName = new Map(d.categories.map((c) => [`${c.kind}|${c.name.toLowerCase()}`, c]))
   d.trips ??= []
   const trips = new Map(d.trips.map((t) => [t.name.toLowerCase(), t]))
-  // a trip named in the file that Tally doesn't know yet is created, spanning the dates of its rows
+  // a trip named in the file that SpendCop doesn't know yet is created, spanning the dates of its rows
   for (const r of plan.rows) {
     if (!r.trip || (skipDupes && r.dup)) continue
     let t = trips.get(r.trip.toLowerCase())
@@ -120,8 +120,8 @@ export function commitImport(d: State, plan: ImportPlan, skipDupes: boolean) {
 /** Checks a backup before it replaces anything. Returns what it contains, or why it can't be used. */
 export function checkBackup(x: unknown): { ok: true; state: State; summary: string } | { ok: false; reason: string } {
   const d = x as State
-  if (!d || typeof d !== 'object') return { ok: false, reason: "That doesn't look like a Tally backup." }
-  if (d.v !== 2) return { ok: false, reason: 'This backup is from a different version of Tally.' }
+  if (!d || typeof d !== 'object') return { ok: false, reason: "That doesn't look like a SpendCop backup." }
+  if (d.v !== 2) return { ok: false, reason: 'This backup is from a different version of SpendCop.' }
   for (const k of ['tx', 'rules', 'categories', 'accounts', 'goals', 'debts', 'people'] as const)
     if (!Array.isArray(d[k])) return { ok: false, reason: `The backup is missing its ${k === 'tx' ? 'transactions' : k}.` }
   if (!d.settings || typeof d.settings.currency !== 'string') return { ok: false, reason: 'The backup is missing its settings.' }

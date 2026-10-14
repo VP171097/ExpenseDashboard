@@ -29,7 +29,7 @@ export function baseSettings(): Settings {
   return {
     name: '', currency: 'EUR', ratios: [50, 30, 20], rollover: false, weekStart: 1, payCycle: 'monthly', challengeTarget: 12,
     extra: 150, strategy: 'cheapest', forecast: { monthly: 400, rate: 6, years: 15 }, theme: 'light', themeV: 2, payAnchor: TODAY, payDays: 14,
-    payday: { rule: 'last', day: 1, shift: 'before' }, offDays: [0, 6],
+    payday: { rule: 'last', day: 1, shift: 'before' }, offDays: [0, 6], salaryNextMonth: true,
   }
 }
 export function emptyState(currency = 'EUR'): State {

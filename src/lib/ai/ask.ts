@@ -1,5 +1,5 @@
 /**
- * Tally AI: questions the built-in answers (quick.ts) can't handle go to the ask-tally function
+ * SpendCop AI: questions the built-in answers (quick.ts) can't handle go to the ask-tally function
  * in your Supabase project, which asks Google Gemini and streams the answer back. People need to
  * be logged in; the AI key stays on the server.
  *
@@ -11,7 +11,7 @@ import { accessToken } from '../cloud/auth'
 import { cloudConfig } from '../cloud/client'
 
 export type { AiEvent, Turn }
-/** enabled: use Tally AI for other questions. notes: include entry descriptions in what is sent. */
+/** enabled: use SpendCop AI for other questions. notes: include entry descriptions in what is sent. */
 export interface AiSettings { enabled: boolean; notes: boolean }
 const KEY = 'tally.ai'
 const DEFAULTS: AiSettings = { enabled: true, notes: true }
@@ -27,16 +27,16 @@ export function setAi(p: Partial<AiSettings>) {
   try { localStorage.setItem(KEY, JSON.stringify(useAi.getState())) } catch { /* ignore */ }
 }
 
-/** Whether Tally AI can answer right now (the built-in answers always can). */
+/** Whether SpendCop AI can answer right now (the built-in answers always can). */
 export const aiReady = (s: AiSettings, signedIn: boolean) => s.enabled && signedIn && !!cloudConfig()
 
 export async function* ask(context: string, turns: Turn[], signal?: AbortSignal): AsyncGenerator<AiEvent> {
   const problem = validate(context, turns)
   if (problem) { yield { type: 'error', message: problem }; return }
   const c = cloudConfig()
-  if (!c) { yield { type: 'error', message: 'Tally AI needs accounts switched on.' }; return }
+  if (!c) { yield { type: 'error', message: 'SpendCop AI needs accounts switched on.' }; return }
   const token = await accessToken()
-  if (!token) { yield { type: 'error', message: 'Log in to use Tally AI.' }; return }
+  if (!token) { yield { type: 'error', message: 'Log in to use SpendCop AI.' }; return }
   let res: Response
   try {
     res = await fetch(`${c.url.replace(/\/$/, '')}/functions/v1/ask-tally`, {
@@ -47,10 +47,10 @@ export async function* ask(context: string, turns: Turn[], signal?: AbortSignal)
   } catch (e) {
     if ((e as Error).name === 'AbortError') return
     // an undeployed function and a dropped connection look the same to the browser
-    yield { type: 'error', message: navigator.onLine === false ? "You're offline. Tally AI needs a connection." : "Can't reach Tally AI right now. Try again in a moment." }; return
+    yield { type: 'error', message: navigator.onLine === false ? "You're offline. SpendCop AI needs a connection." : "Can't reach SpendCop AI right now. Try again in a moment." }; return
   }
   if (!res.ok || !res.body) {
-    let msg = res.status === 404 ? "Tally AI isn't available yet." : `Tally AI had a problem (${res.status}).`
+    let msg = res.status === 404 ? "SpendCop AI isn't available yet." : `SpendCop AI had a problem (${res.status}).`
     try { const j = await res.json(); if (j?.error) msg = j.error } catch { /* keep msg */ }
     yield { type: 'error', message: msg }; return
   }

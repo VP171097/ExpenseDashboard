@@ -62,7 +62,7 @@ export default function Bills() {
       </Card>
 
       <Card i={5} className="col-span-12 lg:col-span-6">
-        <CardHead title="Your regular items" sub="Set once. Tally adds them to every month for you." right={<Button variant="primary" onClick={() => open({ type: 'bill' })}><Plus size={16} />Add</Button>} />
+        <CardHead title="Your regular items" sub="Set once. SpendCop adds them to every month for you." right={<Button variant="primary" onClick={() => open({ type: 'bill' })}><Plus size={16} />Add</Button>} />
         {s.rules.length === 0 ? (
           <Empty title="No regular items yet" text="Start with your rent or mortgage and your pay." action={<Button variant="primary" onClick={() => open({ type: 'bill' })}>Add your first one</Button>} />
         ) : (

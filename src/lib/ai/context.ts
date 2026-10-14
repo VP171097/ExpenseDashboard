@@ -1,6 +1,6 @@
 /**
- * The summary of your dashboard that Ask Tally reads. Built from the same numbers the screens
- * show, so the AI explains Tally's own calculations rather than redoing them. It is small (a
+ * The summary of your dashboard that Ask SpendCop reads. Built from the same numbers the screens
+ * show, so the AI explains SpendCop's own calculations rather than redoing them. It is small (a
  * few thousand words at most), which keeps answers quick, and you can see it in full in Settings.
  */
 import {
