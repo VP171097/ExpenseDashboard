@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import {
-  Banknote, BarChart3, Bot, CalendarClock, Cloud, CloudOff, LogIn, RefreshCw, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Plane, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check,
+  Banknote, BarChart3, Bot, CalendarClock, Cloud, CloudOff, LogIn, RefreshCw, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Plane, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check, Gem,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, type ComponentType } from 'react'
 import Sheets from './components/Sheets'
@@ -12,7 +12,8 @@ import AskTally, { openAsk } from './components/AskTally'
 import { initAuth, useAuth } from './lib/cloud/auth'
 import { resolveConflict, useSync, watchAccount } from './lib/cloud/sync'
 import type { SyncState } from './lib/cloud/engine'
-import { useEntry } from './lib/entry'
+import { useEntry, useLegal } from './lib/entry'
+import Footer from './components/Footer'
 import Home from './screens/Home'
 import Onboarding from './screens/Onboarding'
 import Tour from './components/Tour'
@@ -23,12 +24,13 @@ const screens = {
   Goals: () => import('./screens/Goals'), Plan: () => import('./screens/Plan'), Settings: () => import('./screens/Settings'),
   Worth: () => import('./screens/Worth'), Accounts: () => import('./screens/Accounts'), Calendar: () => import('./screens/Calendar'),
   Household: () => import('./screens/Household'), Paycheck: () => import('./screens/Paycheck'), Year: () => import('./screens/Year'),
-  Trips: () => import('./screens/Trips'),
+  Trips: () => import('./screens/Trips'), Emis: () => import('./screens/Emis'),
 }
 const Activity = lazy(screens.Activity), Bills = lazy(screens.Bills), Debts = lazy(screens.Debts), Goals = lazy(screens.Goals)
 const Plan = lazy(screens.Plan), Settings = lazy(screens.Settings), Worth = lazy(screens.Worth), Accounts = lazy(screens.Accounts)
 const Calendar = lazy(screens.Calendar), Household = lazy(screens.Household), Paycheck = lazy(screens.Paycheck), Year = lazy(screens.Year)
-const Trips = lazy(screens.Trips)
+const Trips = lazy(screens.Trips), Emis = lazy(screens.Emis)
+const Legal = lazy(() => import('./screens/Legal'))
 const Landing = lazy(() => import('./screens/Landing'))
 const Auth = lazy(() => import('./screens/Auth'))
 // fetch every screen shortly after the dashboard shows, so they all still open if the connection drops later
@@ -46,17 +48,18 @@ const NAV: NavItem[] = [
   { id: 'year', label: 'My year', icon: BarChart3, sub: 'The whole year: totals, trends, every category and a look back.', group: 'Planning' },
   { id: 'goals', label: 'Goals', icon: Goal, sub: 'Save up for the things that matter, and try a no-spend challenge.', month: true, group: 'Building wealth' },
   { id: 'debts', label: 'Debts', icon: Scale, sub: 'See when you will be free of loans and cards, and how to get there faster.', group: 'Building wealth' },
+  { id: 'emis', label: 'Loans & EMIs', icon: Landmark, sub: 'Loans and card EMIs: your instalment, how many are paid and when the last one is due.', group: 'Building wealth' },
   { id: 'accounts', label: 'Accounts', icon: PiggyBank, sub: 'Your bank accounts, cards and cash, and money moved between them.', group: 'Building wealth' },
-  { id: 'worth', label: "What I'm worth", icon: Landmark, sub: 'Everything you own minus everything you owe.', group: 'Building wealth' },
+  { id: 'worth', label: "What I'm worth", icon: Gem, sub: 'Everything you own minus everything you owe.', group: 'Building wealth' },
   { id: 'household', label: 'Household', icon: Users, sub: 'Who brings money in and who spends on what.', month: true, group: 'Together' },
-  { id: 'settings', label: 'Settings', icon: Cog, sub: 'Names, currency, accounts and your data.', group: 'Together' },
+  { id: 'settings', label: 'Settings', icon: Cog, sub: 'Payday, working days, look, accounts and your data.', group: 'Together' },
 ]
-const SCREENS: Record<View, ComponentType> = { home: Home, activity: Activity, calendar: Calendar, plan: Plan, paycheck: Paycheck, year: Year, bills: Bills, goals: Goals, debts: Debts, accounts: Accounts, worth: Worth, household: Household, trips: Trips, settings: Settings }
+const SCREENS: Record<View, ComponentType> = { home: Home, activity: Activity, calendar: Calendar, plan: Plan, paycheck: Paycheck, year: Year, bills: Bills, goals: Goals, debts: Debts, emis: Emis, accounts: Accounts, worth: Worth, household: Household, trips: Trips, settings: Settings }
 
 export default function App() {
   const data = useStore((s) => s.data)
   const hydrated = useStore((s) => s.hydrated)
-  const theme = data?.settings.theme ?? 'system'
+  const theme = data?.settings.theme ?? savedTheme()
   const effects = data?.settings.effects ?? 'full'
   useEffect(() => {
     const r = document.documentElement
@@ -75,6 +78,7 @@ export default function App() {
   }, [effects])
   useEffect(() => { void initAuth(); watchAccount() }, [])
   const entry = useEntry((e) => e.screen)
+  const legal = useLegal((l) => l.doc)
   const auth = useAuth()
   const checked = useSync((x) => x.checked)
   // once signed in, the log-in screen has done its job
@@ -84,7 +88,8 @@ export default function App() {
   if (!hydrated) return loading
   // the front door: landing page, log in, or first-time setup; the app once there is data
   let screen
-  if (auth.recovering) screen = <Auth reset />
+  if (legal) screen = <Legal doc={legal} />
+  else if (auth.recovering) screen = <Auth reset />
   else if (entry === 'auth' && auth.status !== 'signed-in') screen = <Auth />
   else if (data) screen = <Shell />
   else if (auth.status === 'loading' || (auth.status === 'signed-in' && !checked)) screen = loading
@@ -134,6 +139,7 @@ function Shell() {
             <Suspense fallback={<ScreenSkeleton />}><Screen /></Suspense>
           </motion.div>
         </AnimatePresence>
+        <Footer className="mt-12" />
       </main>
       <TabBar />
       <Sheets />
@@ -203,6 +209,8 @@ function TopBar() {
       )}
       <button type="button" onClick={() => openAsk()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface px-3 font-semibold text-ink shadow-card hover:border-accent" aria-label="Ask Tally"><Bot size={18} className="text-accent" /><span className="hidden sm:inline">Ask Tally</span></button>
       <ThemeToggle />
+      <button type="button" onClick={() => useUI.getState().go('settings')} aria-label="Settings" title="Settings" aria-current={view === 'settings' ? 'page' : undefined}
+        className={`grid h-10 w-10 place-items-center rounded-xl border bg-surface shadow-card hover:text-ink ${view === 'settings' ? 'border-accent text-accent' : 'border-line text-ink2'}`}><Cog size={18} /></button>
       <span data-tour="help" className="lg:hidden"><Button variant="ghost" onClick={() => open({ type: 'help' })} ariaLabel="Help"><HelpCircle size={18} /><span className="hidden sm:inline">Help</span></Button></span>
     </header>
   )
@@ -278,8 +286,11 @@ function ScreenSkeleton() {
   )
 }
 
+/** The look before any data is loaded: what this browser used last, light by default. */
+const savedTheme = (): 'system' | 'light' | 'dark' => { try { const t = localStorage.getItem('tally.theme'); return t === 'dark' || t === 'system' ? t : 'light' } catch { return 'light' } }
+
 function ThemeToggle() {
-  const theme = useStore((s) => s.data?.settings.theme ?? 'system')
+  const theme = useStore((s) => s.data?.settings.theme ?? 'light')
   const dark = theme === 'dark' || (theme === 'system' && typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches)
   return (
     <motion.button type="button" whileTap={{ scale: 0.9, rotate: -20 }} onClick={() => update((d) => { d.settings.theme = dark ? 'light' : 'dark' })}

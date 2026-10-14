@@ -10,6 +10,7 @@ import shot from '../assets/landing/app-desktop-dark.webp'
 import { checkCloudConfig, cloudConfig, saveCloudConfig } from '../lib/cloud/client'
 import { authOptions, google, logIn, restartAuth, sendReset, setNewPassword, signUp } from '../lib/cloud/auth'
 import { useEntry, type AuthMode } from '../lib/entry'
+import Footer from '../components/Footer'
 
 type Mode = AuthMode | 'reset' | 'sent' | 'confirm'
 
@@ -126,6 +127,7 @@ export default function Auth({ reset = false }: { reset?: boolean }) {
           </AnimatePresence>
         </div>
       </motion.div>
+      <Footer className="mt-8 w-full max-w-5xl" />
     </div>
   )
 }

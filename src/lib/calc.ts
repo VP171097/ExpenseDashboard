@@ -1,5 +1,6 @@
-import { addDays, addMonths, addMonthsDate, daysIn, iso, monthEnd, monthsBetween, NOW, parse, THIS_MONTH, TODAY } from './dates'
-import type { Category, Debt, Freq, Item, Rule, State, Transfer, Trip, Tx } from './types'
+import { addDays, addMonths, addMonthsDate, daysIn, iso, monthEnd, monthsBetween, NOW, parse, paydaysBetween, payDate, THIS_MONTH, TODAY } from './dates'
+import { emisOwed } from './emi'
+import type { Category, Debt, Freq, Item, Rule, Settings, State, Transfer, Trip, Tx } from './types'
 import { money0 as fmtM } from './money'
 
 /* Money is stored with at most two decimals and always added up in whole cents, so totals never drift. */
@@ -34,7 +35,13 @@ export const catColor = (c?: Category | null) =>
 export const accountName = (s: State, id?: string) => s.accounts.find((a) => a.id === id)?.name ?? ''
 export const spendCats = (s: State) => s.categories.filter((c) => c.kind === 'expense')
 
-export function occurrences(r: Rule, from: string, to: string) {
+/** Whether a regular item lands on the monthly payday rather than on a fixed date. */
+export const onPayday = (s: State | undefined, r: Rule) => !!(r.payday && r.freq === 'monthly' && s?.settings.payday && s.settings.payCycle === 'monthly')
+export function occurrences(r: Rule, from: string, to: string, s?: State) {
+  if (onPayday(s, r)) {
+    const lo = from > r.start ? from : r.start, hi = r.end && r.end < to ? r.end : to
+    return lo > hi ? [] : paydaysBetween(lo, hi, s!.settings.payday!, s!.settings.offDays)
+  }
   const out: string[] = []
   const start = parse(r.start)
   const f = FREQ[r.freq] ?? FREQ.monthly
@@ -50,6 +57,30 @@ export function isPaid(s: State, r: Rule, d: string) {
   const k = ruleKey(r.id, d)
   if (k in s.paid) return s.paid[k]
   return !!r.paidThrough && d <= r.paidThrough
+}
+
+/**
+ * Change how paydays are worked out. Items that land on payday move to the new date in each month,
+ * and anything already ticked off, skipped or changed moves with them, so no history is lost.
+ */
+export function changePayday(d: State, patch: Partial<Pick<Settings, 'payday' | 'offDays' | 'payCycle'>>, follows: Record<string, boolean> = {}) {
+  const before = { ...d, settings: { ...d.settings }, rules: d.rules.map((r) => ({ ...r })) } as State
+  Object.assign(d.settings, patch)
+  for (const r of d.rules) if (r.id in follows) r.payday = follows[r.id]
+  const to = iso(addMonthsDate(NOW, 14))
+  d.rules.forEach((r, i) => {
+    const was = before.rules[i]
+    if (!onPayday(before, was) && !onPayday(d, r)) return
+    const now = new Map(occurrences(r, r.start, to, d).map((x) => [x.slice(0, 7), x]))
+    for (const old of occurrences(was, was.start, to, before)) {
+      const nu = now.get(old.slice(0, 7))
+      if (!nu || nu === old) continue
+      for (const marks of [d.paid, d.skip, d.overrides] as Record<string, unknown>[]) {
+        const k = ruleKey(r.id, old)
+        if (k in marks) { marks[ruleKey(r.id, nu)] = marks[k]; delete marks[k] }
+      }
+    }
+  })
 }
 
 /* One-off entries grouped by month, so a query only touches the months it needs. */
@@ -83,7 +114,7 @@ export function itemsIn(s: State, from: string, to: string): Item[] {
     // look a month either side so a single payment moved across a month boundary still shows up
     const wideFrom = iso(addDays(parse(from), -40)), wideTo = to > '2900' ? to : iso(addDays(parse(to), 40))
     for (const r of s.rules)
-      for (const d of occurrences(r, wideFrom, wideTo)) {
+      for (const d of occurrences(r, wideFrom, wideTo, s)) {
         const key = ruleKey(r.id, d)
         if (s.skip[key]) continue
         const ov = s.overrides?.[key]
@@ -267,12 +298,13 @@ export function worthNow(s: State) {
   s.accounts.forEach((a) => { const v = b[a.id] || 0; if (v >= 0) own += v; else owe -= v })
   s.holdings.forEach((h) => { if (h.kind === 'owe') owe += +h.value || 0; else own += +h.value || 0 })
   s.debts.forEach((d) => (owe += +d.balance || 0))
+  owe += emisOwed(s)
   return { own, owe, net: own - owe }
 }
 
 export const perMonth = (r: Rule) => (+r.amount || 0) * (FREQ[r.freq]?.perMonth ?? 1)
 export function nextDue(s: State, r: Rule) {
-  return occurrences(r, TODAY, iso(addMonthsDate(NOW, 13))).find((d) => !s.skip[ruleKey(r.id, d)]) ?? null
+  return occurrences(r, TODAY, iso(addMonthsDate(NOW, 13)), s).find((d) => !s.skip[ruleKey(r.id, d)]) ?? null
 }
 /** Unpaid bills and transfers from the start of this month up to `days` from today. */
 export function upcoming(s: State, days: number) {
@@ -286,14 +318,21 @@ export function monthPicture(s: State, k: string) {
   const m = monthStats(s, k)
   const isCur = k === THIS_MONTH, isFuture = k > THIS_MONTH
   const dim = daysIn(k)
-  const elapsed = isCur ? NOW.getDate() : isFuture ? 0 : dim
+  // in the month you started using Tally, the month begins on that day and what you had then counts as money in
+  const since = s.settings.since, first = since?.slice(0, 7) === k ? parse(since!).getDate() : 1
+  const opening = since?.slice(0, 7) === k ? openingBalance(s) : 0
+  const span = dim - first + 1
+  const elapsed = isCur ? Math.max(0, NOW.getDate() - first + 1) : isFuture ? 0 : span
   const daysLeft = isCur ? dim - NOW.getDate() + 1 : isFuture ? dim : 0
-  const moneyIn = m.income + m.expectedIn
+  const moneyIn = m.income + m.expectedIn + opening
   const safe = moneyIn - m.spent - m.saved - m.billsDue
   const plan = totalPlan(s, k)
-  const forecast = isCur && elapsed ? m.billsAll + (m.everydaySpent / elapsed) * dim : isFuture ? m.billsAll : m.spent
-  return { m, isCur, isFuture, dim, elapsed, daysLeft, moneyIn, safe, plan, forecast, perDay: daysLeft ? safe / daysLeft : 0 }
+  const forecast = isCur && elapsed ? m.billsAll + (m.everydaySpent / elapsed) * span : isFuture ? m.billsAll : m.spent
+  return { m, isCur, isFuture, dim, elapsed, daysLeft, moneyIn, opening, safe, plan, forecast, perDay: daysLeft ? safe / daysLeft : 0 }
 }
+
+/** What was in your everyday accounts and cash on the day you started using Tally. */
+export const openingBalance = (s: State) => sum(s.accounts.filter((a) => a.type === 'everyday' || a.type === 'cash').map((a) => +a.start || 0))
 
 /* ---------- debts ---------- */
 export function simulate(debts: Debt[], extra: number, strategy: 'cheapest' | 'quickwins' | 'custom') {
@@ -400,6 +439,12 @@ export const monthsUntil = (due: string) => Math.max(1, monthsBetween(NOW, parse
 /* ---------- pay periods ---------- */
 export function payPeriod(s: State, offset = 0) {
   const st = s.settings, anchor = parse(st.payAnchor || TODAY)
+  if (st.payCycle === 'monthly' && st.payday) {
+    // from one payday to the day before the next
+    const base = payDate(THIS_MONTH, st.payday, st.offDays) <= TODAY ? THIS_MONTH : addMonths(THIS_MONTH, -1)
+    const k = addMonths(base, offset)
+    return { start: payDate(k, st.payday, st.offDays), end: iso(addDays(parse(payDate(addMonths(k, 1), st.payday, st.offDays)), -1)) }
+  }
   if (st.payCycle === 'monthly' || st.payCycle === 'semimonthly') {
     const day = anchor.getDate()
     if (st.payCycle === 'monthly') {

@@ -9,7 +9,7 @@ import {
   TrendingDown, TrendingUp, Trophy, Users, Utensils, Wallet, WifiOff, X, XCircle, Zap,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useEntry } from '../lib/entry'
+import { useEntry, useLegal } from '../lib/entry'
 import { celebrate, Tilt } from '../components/ui'
 import desk from '../assets/landing/desk.webp'
 import plan from '../assets/landing/plan.webp'
@@ -807,10 +807,10 @@ function Footer({ onLogin, onStart, jump }: { onLogin: () => void; onStart: () =
           <p className="mt-3 max-w-sm text-[14px] text-ink2">A private, friendly money companion for you and your family. Built for clarity, speed and peace of mind.</p>
         </div>
         <div><p className="mb-3 text-[12px] font-bold uppercase tracking-wider text-muted">Product</p><ul className="space-y-2"><li><button type="button" className={link} onClick={onLogin}>Log in</button></li><li><button type="button" className={link} onClick={onStart}>Create account</button></li><li><button type="button" className={link} onClick={() => jump('features')}>Features</button></li><li><button type="button" className={link} onClick={() => jump('ai')}>Ask Tally</button></li></ul></div>
-        <div><p className="mb-3 text-[12px] font-bold uppercase tracking-wider text-muted">Help</p><ul className="space-y-2"><li><button type="button" className={link} onClick={() => jump('privacy')}>Privacy</button></li><li><button type="button" className={link} onClick={() => jump('faq')}>FAQ</button></li><li><button type="button" className={link} onClick={() => jump('journey')}>How it works</button></li></ul></div>
+        <div><p className="mb-3 text-[12px] font-bold uppercase tracking-wider text-muted">Help</p><ul className="space-y-2"><li><button type="button" className={link} onClick={() => jump('privacy')}>Privacy at a glance</button></li><li><button type="button" className={link} onClick={() => jump('faq')}>FAQ</button></li><li><button type="button" className={link} onClick={() => jump('journey')}>How it works</button></li><li><button type="button" className={link} onClick={() => useLegal.getState().open('privacy')}>Privacy policy</button></li><li><button type="button" className={link} onClick={() => useLegal.getState().open('terms')}>Terms & conditions</button></li></ul></div>
       </div>
       <div className="mx-auto mt-10 flex max-w-6xl flex-wrap justify-between gap-2 border-t border-line pt-6 text-[12.5px] text-muted">
-        <span>© 2026 Tally. A private personal and family finance tool.</span>
+        <span>© {new Date().getFullYear()} Tally. A private personal and family finance tool. Not a bank and not financial advice.</span>
         <span>Photos from Unsplash · App images show example data</span>
       </div>
     </footer>

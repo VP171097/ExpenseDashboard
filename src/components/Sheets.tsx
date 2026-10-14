@@ -5,12 +5,13 @@ import {
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { catOf, cents, findDuplicate, FREQ, isPaid, monthsUntil, ruleKey, tripDays, uid } from '../lib/calc'
 import { saveFile, workbook } from '../lib/files'
-import { addDays, addMonthsDate, iso, NOW, THIS_MONTH, TODAY } from '../lib/dates'
+import { emiRule, emiStatus } from '../lib/emi'
+import { addDays, addMonthsDate, fmtDate, iso, NOW, THIS_MONTH, TODAY } from '../lib/dates'
 import { balances } from '../lib/calc'
 import { checkBackup, commitImport, prepareImport, toCsv, type ImportPlan } from '../lib/io'
 import { money, symbol } from '../lib/money'
 import { replaceData, toast, update, useData, useStore, useUI, type SheetSpec, type View } from '../lib/store'
-import type { Category, Freq, Kind, State } from '../lib/types'
+import type { Category, Emi, Freq, Kind, State } from '../lib/types'
 import { Button, CatIcon, celebrate, Field, ICONS, Segmented, Sheet } from './ui'
 
 const KIND_WORD: Record<Kind, string> = { expense: 'Money out', income: 'Money in', savings: 'Put aside' }
@@ -27,6 +28,7 @@ export default function Sheets() {
   const titles: Record<SheetSpec['type'], string> = {
     quick: spec?.type === 'quick' && spec.edit ? 'Edit entry' : 'Add money in or out', bill: spec?.type === 'bill' && spec.id ? 'Edit regular item' : 'New regular item',
     goal: spec?.type === 'goal' && spec.id ? 'Edit goal' : 'New savings goal', trip: spec?.type === 'trip' && spec.id ? 'Edit trip' : 'New trip', debt: spec?.type === 'debt' && spec.id ? 'Edit loan or card' : 'Add a loan or card',
+    emi: spec?.type === 'emi' && spec.id ? 'Edit loan or EMI' : spec?.type === 'emi' && spec.kind === 'card' ? 'Add a card EMI' : 'Add a loan',
     holding: spec?.type === 'holding' && spec.id ? 'Edit' : spec?.type === 'holding' && spec.kind === 'owe' ? 'Add something you owe' : 'Add something you own',
     account: spec?.type === 'account' && spec.id ? 'Edit account' : 'Add account', category: spec?.type === 'category' && spec.id ? 'Edit category' : 'New category',
     help: 'Help & simple answers', more: 'Everything in Tally', csv: 'Import from your bank', backup: 'Back up & export', confirm: spec?.type === 'confirm' ? spec.title : '',
@@ -34,7 +36,7 @@ export default function Sheets() {
   }
   return (
     <>
-      {(['quick', 'bill', 'goal', 'trip', 'debt', 'holding', 'account', 'category', 'help', 'more', 'csv', 'backup', 'confirm', 'occ', 'transfer'] as const).map((t) => (
+      {(['quick', 'bill', 'goal', 'trip', 'debt', 'emi', 'holding', 'account', 'category', 'help', 'more', 'csv', 'backup', 'confirm', 'occ', 'transfer'] as const).map((t) => (
         <Sheet key={t} open={is(t)} onClose={close} title={titles[t]} wide={t === 'help' || t === 'backup'}>
           {spec?.type === t && <Body key={key} spec={spec} />}
         </Sheet>
@@ -50,6 +52,7 @@ function Body({ spec }: { spec: SheetSpec }) {
     case 'goal': return <GoalForm id={spec.id} />
     case 'trip': return <TripForm id={spec.id} />
     case 'debt': return <DebtForm id={spec.id} />
+    case 'emi': return <EmiForm id={spec.id} kind={spec.kind} />
     case 'holding': return <HoldingForm id={spec.id} kind={spec.kind} />
     case 'account': return <AccountForm id={spec.id} />
     case 'category': return <CategoryForm id={spec.id} />
@@ -431,6 +434,100 @@ function DebtForm({ id }: { id?: string }) {
   )
 }
 
+/* ---------------- a loan or card EMI: what you borrowed, the rate and how long ---------------- */
+function EmiForm({ id, kind }: { id?: string; kind?: 'loan' | 'card' }) {
+  const s = useData()
+  const x = s.emis.find((e) => e.id === id)
+  const [k, setK] = useState<'loan' | 'card'>(x?.kind ?? kind ?? 'loan')
+  const [name, setName] = useState(x?.name ?? '')
+  const [lender, setLender] = useState(x?.lender ?? '')
+  const [principal, setPrincipal] = useState(x ? String(x.principal) : '')
+  const [rate, setRate] = useState(x ? String(x.rate) : '')
+  const [tenure, setTenure] = useState(x ? String(x.months % 12 === 0 && x.months >= 12 ? x.months / 12 : x.months) : '')
+  const [unit, setUnit] = useState<'months' | 'years'>(x && x.months % 12 === 0 && x.months >= 12 ? 'years' : k === 'card' ? 'months' : 'years')
+  const [started, setStarted] = useState<'yes' | 'no'>(x ? (x.first < TODAY ? 'yes' : 'no') : 'no')
+  const [first, setFirst] = useState(x?.first ?? iso(addMonthsDate(NOW, 1)))
+  const [own, setOwn] = useState(x?.emi ? String(x.emi) : '')
+  const [account, setAccount] = useState(x?.account ?? s.accounts.find((a) => a.type === 'everyday')?.id ?? s.accounts[0].id)
+  const [err, setErr] = useState('')
+  const months = Math.round((parseFloat(tenure) || 0) * (unit === 'years' ? 12 : 1))
+  const draft: Emi = { id: x?.id ?? 'new', name: name.trim(), kind: k, lender: lender.trim() || undefined, principal: parseFloat(principal) || 0, rate: parseFloat(rate) || 0, months, first, emi: parseFloat(own) > 0 ? parseFloat(own) : undefined, account, ruleId: x?.ruleId }
+  const ok = draft.principal > 0 && months > 0 && months <= 600 && /^\d{4}-\d{2}-\d{2}$/.test(first)
+  const st = ok ? emiStatus(draft) : null
+  const save = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!draft.name) return setErr(k === 'card' ? 'What did you buy? For example "Phone".' : 'Give it a name, like "Car loan".')
+    if (!(draft.principal > 0)) return setErr('How much did you borrow?')
+    if (!(draft.rate >= 0 && draft.rate <= 60)) return setErr('Enter the yearly interest rate, between 0 and 60%.')
+    if (!(months > 0 && months <= 600)) return setErr('How long is it for? Between 1 month and 50 years.')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(first)) return setErr('Pick the date of the first EMI.')
+    if (started === 'yes' && first >= TODAY) return setErr('You said some EMIs are already paid, so the first one was before today.')
+    if (started === 'no' && first < TODAY) return setErr('That date is in the past. If you have already paid some EMIs, choose "Yes" above.')
+    const cat = s.categories.find((c) => c.id === 'debt')?.id ?? s.categories.find((c) => c.kind === 'expense')!.id
+    const prev = update((d) => {
+      const old = d.rules.find((r) => r.id === x?.ruleId)
+      // instalments before you started tracking this one aren't added as past spending
+      const rule = emiRule(draft, old?.start ?? TODAY, old, cat)
+      const e2: Emi = { ...draft, id: x?.id ?? uid(), ruleId: rule?.id ?? old?.id }
+      // a finished loan keeps the EMIs already on record
+      if (rule) { d.rules = d.rules.filter((r) => r.id !== rule.id); d.rules.push(rule) }
+      if (x) d.emis[d.emis.findIndex((y) => y.id === x.id)] = e2
+      else d.emis.push(e2)
+    })
+    done(x ? 'Saved' : `${draft.name} added. Its EMIs are on your calendar.`, prev)
+  }
+  const remove = () => {
+    const prev = update((d) => {
+      d.emis = d.emis.filter((y) => y.id !== x!.id)
+      // keep EMIs already on record; stop future ones
+      const r = d.rules.find((y) => y.id === x!.ruleId)
+      if (r) { if (r.start >= TODAY) d.rules = d.rules.filter((y) => y !== r); else r.end = iso(addDays(NOW, -1)) }
+    })
+    done('Removed. EMIs already on record are kept.', prev)
+  }
+  return (
+    <form onSubmit={save} className="flex flex-col gap-4">
+      {!x && <Segmented label="Type" value={k} onChange={(v) => { setK(v); if (!tenure) setUnit(v === 'card' ? 'months' : 'years') }} options={[['loan', 'Loan'], ['card', 'Card EMI']]} />}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={k === 'card' ? 'What did you buy?' : 'Name'}><input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder={k === 'card' ? 'e.g. Phone' : 'e.g. Car loan'} /></Field>
+        <Field label={k === 'card' ? 'Which card? (optional)' : 'Bank or lender (optional)'}><input className="field" value={lender} onChange={(e) => setLender(e.target.value)} /></Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label={k === 'card' ? 'Amount converted to EMI' : 'Amount taken'}><input className="field" type="number" min="0" step="any" inputMode="decimal" value={principal} onChange={(e) => setPrincipal(e.target.value)} /></Field>
+        <Field label="Interest per year (%)" hint={k === 'card' ? 'Use 0 for a no-cost EMI' : undefined}><input className="field" type="number" min="0" max="60" step="0.01" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} /></Field>
+        <Field label="Tenure"><div className="flex gap-2"><input className="field" type="number" min="1" step="1" inputMode="numeric" value={tenure} onChange={(e) => setTenure(e.target.value)} aria-label="Tenure" /><select className="field !w-auto" value={unit} onChange={(e) => setUnit(e.target.value as 'months' | 'years')} aria-label="Tenure in"><option value="months">months</option><option value="years">years</option></select></div></Field>
+      </div>
+      <div>
+        <p className="mb-2 text-[13.5px] font-semibold text-ink2">Have you already paid some EMIs?</p>
+        <Segmented label="Already paid some EMIs" value={started} onChange={setStarted} options={[['no', 'No, not yet'], ['yes', 'Yes']]} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={started === 'yes' ? 'When was the first EMI paid?' : 'When is the first EMI due?'} hint="EMIs then fall on the same date each month"><input className="field" type="date" value={first} max={started === 'yes' ? iso(addDays(NOW, -1)) : undefined} min={started === 'no' ? TODAY : undefined} onChange={(e) => setFirst(e.target.value)} /></Field>
+        <Field label="Paid from"><select className="field" value={account} onChange={(e) => setAccount(e.target.value)}>{s.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
+      </div>
+      {st && (
+        <div className="rounded-2xl bg-accent-soft p-4 text-[14px]" aria-live="polite">
+          <p>Your EMI: <b className="font-display text-[20px]">{money(st.emi)}</b> a month for {months} months</p>
+          <ul className="mt-2 grid gap-1 text-[13.5px] sm:grid-cols-2">
+            <li>Total interest: <b>{money(st.interestTotal)}</b></li>
+            <li>Total you'll pay: <b>{money(st.totalPayable)}</b></li>
+            <li>EMIs paid so far: <b>{st.done} of {months}</b></li>
+            <li>{st.thisMonth ? <>This month: <b>EMI {st.thisMonth.n}</b> on {fmtDate(st.thisMonth.date)}</> : st.next ? <>Next: <b>EMI {st.next.n}</b> on {fmtDate(st.next.date)}</> : <>All EMIs paid</>}</li>
+            <li>Last EMI: <b>{fmtDate(st.last, { day: 'numeric', month: 'long', year: 'numeric' })}</b></li>
+            <li>Still owed today: <b>{money(st.owed)}</b></li>
+          </ul>
+        </div>
+      )}
+      <Field label="EMI on your statement (optional)" hint="If your lender's EMI is slightly different, enter it here and Tally will use it."><input className="field" type="number" min="0" step="any" inputMode="decimal" value={own} onChange={(e) => setOwn(e.target.value)} /></Field>
+      <Err msg={err} />
+      <Foot>
+        {x && <Button variant="danger" className="mr-auto" onClick={remove}><Trash2 size={16} />Remove</Button>}
+        <Button type="submit" variant="primary">{x ? 'Save' : 'Add'}</Button>
+      </Foot>
+    </form>
+  )
+}
+
 function HoldingForm({ id, kind }: { id?: string; kind?: 'own' | 'owe' }) {
   const s = useData()
   const h = s.holdings.find((x) => x.id === id)
@@ -587,7 +684,7 @@ function More() {
   const items: [View | 'help' | 'tour', string, string, typeof Goal][] = [
     ['calendar', 'Calendar', 'Your month day by day', CalendarDays], ['bills', 'Bills & pay', 'Things that repeat', CalendarClock],
     ['paycheck', 'Paycheck', 'Plan pay period by pay period', Banknote], ['year', 'My year', 'Totals, trends, reflection', BarChart3],
-    ['trips', 'Trips', 'Holidays and their costs', Plane], ['goals', 'Goals', 'Save up for things', Goal], ['debts', 'Debts', 'Get debt-free faster', Scale],
+    ['trips', 'Trips', 'Holidays and their costs', Plane], ['goals', 'Goals', 'Save up for things', Goal], ['debts', 'Debts', 'Get debt-free faster', Scale], ['emis', 'Loans & EMIs', 'Instalments and what is left', Landmark],
     ['accounts', 'Accounts', 'Banks, cards and cash', Wallet], ['worth', "What I'm worth", 'Own minus owe', Landmark],
     ['household', 'Household', 'Who spends what', Users], ['settings', 'Settings', 'Names, currency, data', Cog],
     ['help', 'Help', 'Simple answers', HelpCircle], ['tour', 'Take the tour', 'A 1-minute walk-through', Compass],

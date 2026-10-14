@@ -52,3 +52,29 @@ export const ordinal = (n: number) => {
   const s = ['th', 'st', 'nd', 'rd'], v = n % 100
   return n + (s[(v - 20) % 10] || s[v] || s[0])
 }
+
+/* ---------- working days and paydays ---------- */
+export const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6].map((d) => ({ d, short: new Date(2024, 0, 7 + d).toLocaleDateString(undefined, { weekday: 'short' }), long: new Date(2024, 0, 7 + d).toLocaleDateString(undefined, { weekday: 'long' }) }))
+/** True when `d` is a working day. With every day marked off, every day counts as working. */
+export const isWorkday = (d: Date, off: number[] = [0, 6]) => off.length >= 7 || !off.includes(d.getDay())
+const toWorkday = (d: Date, off: number[], step: 1 | -1) => { let x = d; for (let i = 0; i < 7 && !isWorkday(x, off); i++) x = addDays(x, step); return x }
+
+/** The payday in month `k` (YYYY-MM) for a monthly payday rule. */
+export function payDate(k: string, p: { rule: 'date' | 'first' | 'last'; day: number; shift: 'before' | 'after' }, off: number[] = [0, 6]) {
+  const [y, m] = k.split('-').map(Number)
+  if (p.rule === 'first') return iso(toWorkday(new Date(y, m - 1, 1), off, 1))
+  if (p.rule === 'last') return iso(toWorkday(new Date(y, m, 0), off, -1))
+  const d = new Date(y, m - 1, Math.min(Math.max(1, p.day || 1), daysIn(k)))
+  return iso(toWorkday(d, off, p.shift === 'after' ? 1 : -1))
+}
+/** Paydays from `from` to `to` (inclusive), for a monthly payday rule. */
+export function paydaysBetween(from: string, to: string, p: Parameters<typeof payDate>[1], off?: number[]) {
+  const out: string[] = []
+  for (let k = addMonths(from.slice(0, 7), -1); k <= addMonths(to.slice(0, 7), 1); k = addMonths(k, 1)) {
+    const d = payDate(k, p, off)
+    if (d >= from && d <= to) out.push(d)
+  }
+  return out
+}
+/** The first payday on or after `from`. */
+export const nextPayday = (p: Parameters<typeof payDate>[1], off?: number[], from = TODAY) => paydaysBetween(from, iso(addDays(parse(from), 70)), p, off)[0]

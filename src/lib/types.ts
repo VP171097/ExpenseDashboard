@@ -13,9 +13,30 @@ export interface Transfer { id: string; date: string; from: string; to: string; 
 export interface Rule {
   id: string; name: string; type: Kind; cat: string; amount: number; freq: Freq; start: string; end?: string
   account: string; to?: string; person?: string; paidThrough?: string; sub?: string
+  /** a monthly item that lands on payday (see Settings.payday) instead of a fixed date */
+  payday?: boolean
 }
 export interface Goal { id: string; name: string; target: number; saved: number; due: string; history?: { date: string; amount: number }[] }
 export interface Debt { id: string; name: string; balance: number; rate: number; min: number; order?: number }
+/** A loan or a card purchase turned into EMIs (equal monthly instalments). */
+export interface Emi {
+  id: string; name: string; kind: 'loan' | 'card'; lender?: string
+  /** amount borrowed */
+  principal: number
+  /** interest per year, in % */
+  rate: number
+  /** number of monthly instalments */
+  months: number
+  /** date of the first instalment */
+  first: string
+  /** the instalment from the lender's statement, when it differs from the worked-out one */
+  emi?: number
+  account: string
+  /** the regular item that puts each instalment on the calendar */
+  ruleId?: string
+}
+/** How the monthly payday is found: a fixed date, or the first or last working day of the month. */
+export interface Payday { rule: 'date' | 'first' | 'last'; day: number; shift: 'before' | 'after' }
 export interface Holding { id: string; name: string; kind: 'own' | 'owe'; group: string; value: number }
 
 export interface Settings {
@@ -34,6 +55,14 @@ export interface Settings {
   strategy: 'cheapest' | 'quickwins' | 'custom'
   forecast: { monthly: number; rate: number; years: number }
   theme: 'system' | 'light' | 'dark'
+  /** set once the light-by-default change has been applied */
+  themeV?: number
+  /** monthly payday rule */
+  payday?: Payday
+  /** days of the week you don't work (0 = Sunday) */
+  offDays?: number[]
+  /** the day you started using Tally; nothing before it is counted */
+  since?: string
   /** 'reduced' turns off 3D, tilt, particles and confetti */
   effects?: 'full' | 'reduced'
   /** when the last full backup was exported (ISO date) */
@@ -52,6 +81,7 @@ export interface State {
   skip: Record<string, boolean>
   goals: Goal[]
   debts: Debt[]
+  emis: Emi[]
   holdings: Holding[]
   history: Record<string, { own: number; owe: number }>
   transfers: Transfer[]

@@ -1,6 +1,7 @@
 import { addDays, addMonths, addMonthsDate, iso, NOW, pad, parse, THIS_MONTH, TODAY } from './dates'
 import { uid } from './calc'
-import type { Category, Freq, Rule, Settings, State, Transfer, Trip, Tx } from './types'
+import { emiRule } from './emi'
+import type { Category, Emi, Freq, Rule, Settings, State, Transfer, Trip, Tx } from './types'
 
 export function baseCategories(): Category[] {
   return [
@@ -27,7 +28,8 @@ export function baseCategories(): Category[] {
 export function baseSettings(): Settings {
   return {
     name: '', currency: 'EUR', ratios: [50, 30, 20], rollover: false, weekStart: 1, payCycle: 'monthly', challengeTarget: 12,
-    extra: 150, strategy: 'cheapest', forecast: { monthly: 400, rate: 6, years: 15 }, theme: 'system', payAnchor: TODAY, payDays: 14,
+    extra: 150, strategy: 'cheapest', forecast: { monthly: 400, rate: 6, years: 15 }, theme: 'light', themeV: 2, payAnchor: TODAY, payDays: 14,
+    payday: { rule: 'last', day: 1, shift: 'before' }, offDays: [0, 6],
   }
 }
 export function emptyState(currency = 'EUR'): State {
@@ -37,7 +39,7 @@ export function emptyState(currency = 'EUR'): State {
       { id: 'chk', name: 'Everyday account', type: 'everyday', start: 0 },
       { id: 'sav', name: 'Savings account', type: 'savings', start: 0 },
     ],
-    categories: baseCategories(), tx: [], rules: [], paid: {}, skip: {}, goals: [], debts: [], holdings: [], history: {}, transfers: [], trips: [], overrides: {}, reflections: {},
+    categories: baseCategories(), tx: [], rules: [], paid: {}, skip: {}, goals: [], debts: [], emis: [], holdings: [], history: {}, transfers: [], trips: [], overrides: {}, reflections: {},
     settings: { ...baseSettings(), currency },
   }
 }
@@ -137,6 +139,15 @@ export function sampleState(): State {
   const due = (n: number) => iso(addMonthsDate(NOW, n))
   // a contribution on the 28th of each of the last four months
   const hist = (amount: number) => [4, 3, 2, 1].map((n) => ({ date: `${addMonths(THIS_MONTH, -n)}-28`, amount }))
+  // a renovation loan and a phone bought on card EMI
+  const emis: Emi[] = [
+    { id: uid(), name: 'Kitchen renovation', kind: 'loan', lender: 'City Bank', principal: 5000, rate: 9.5, months: 36, first: `${addMonths(THIS_MONTH, -14)}-07`, account: 'chk' },
+    { id: uid(), name: 'Phone', kind: 'card', lender: 'Credit card', principal: 1200, rate: 13, months: 12, first: `${addMonths(THIS_MONTH, -4)}-12`, account: 'chk' },
+  ]
+  for (const e of emis) {
+    const r = emiRule(e, `${s0}-01`)
+    if (r) { r.paidThrough = TODAY; r.person = 'Alex'; e.ruleId = r.id; rules.push(r) }
+  }
   const st: State = {
     v: 2, sample: true, people,
     accounts: [
@@ -156,6 +167,7 @@ export function sampleState(): State {
       { id: uid(), name: 'Student loan', balance: 14200, rate: 4.5, min: 160 },
       { id: uid(), name: 'Store card', balance: 1350, rate: 24.9, min: 45 },
     ],
+    emis,
     holdings: [
       { id: uid(), name: 'Investments', kind: 'own', group: 'Investments', value: 18400 },
       { id: uid(), name: 'Work pension', kind: 'own', group: 'Investments', value: 23900 },
@@ -163,7 +175,7 @@ export function sampleState(): State {
       { id: uid(), name: 'Loan from family', kind: 'owe', group: 'Personal', value: 600 },
     ],
     history: {}, transfers, trips, overrides: {}, reflections: {},
-    settings: { ...baseSettings(), name: 'Alex', payAnchor: `${s0}-25` },
+    settings: { ...baseSettings(), name: 'Alex', payAnchor: `${s0}-25`, payday: { rule: 'date', day: 25, shift: 'before' } },
   }
   return st
 }
