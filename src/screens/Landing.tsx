@@ -10,7 +10,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useEntry } from '../lib/entry'
-import { Tilt } from '../components/ui'
+import { celebrate, Tilt } from '../components/ui'
 import desk from '../assets/landing/desk.webp'
 import plan from '../assets/landing/plan.webp'
 import roadtrip from '../assets/landing/roadtrip.webp'
@@ -91,7 +91,11 @@ export default function Landing() {
   const { dark, toggle } = useLandingTheme()
   const [menu, setMenu] = useState(false)
   const login = () => go('auth', 'login'), start = () => go('auth', 'signup'), tryIt = () => go('setup')
-  const jump = (id: string) => { setMenu(false); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' }) }
+  const jump = (id: string) => { setMenu(false); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: id === 'ask-demo' ? 'center' : 'start' }) }
+  // the Ask Tally demo can be driven from other parts of the page
+  const [qa, setQa] = useState(0)
+  const [ownQ, setOwnQ] = useState('')
+  const askDemo = (i: number) => { setOwnQ(''); setQa(i); jump('ask-demo') }
 
   return (
     <div className="min-h-screen overflow-x-clip">
@@ -124,14 +128,14 @@ export default function Landing() {
       </header>
 
       <main id="top">
-        <Hero m={m} dark={dark} onStart={start} onTry={tryIt} onTour={() => jump('journey')} />
-        <TrustStrip />
+        <Hero m={m} dark={dark} onStart={start} onTry={tryIt} onTour={() => jump('journey')} jump={jump} askDemo={askDemo} />
+        <TrustStrip jump={jump} />
         <Journey m={m} />
         <Shift />
-        <AskSection m={m} />
+        <AskSection m={m} n={qa} setN={setQa} askDemo={askDemo} ownQ={ownQ} setOwnQ={setOwnQ} />
         <WhatIf m={m} />
         <Modules />
-        <FeatureChips />
+        <FeatureChips jump={jump} />
         <Cascade m={m} />
         <Together m={m} />
         <Habits />
@@ -145,7 +149,7 @@ export default function Landing() {
 }
 
 /* ---------- hero ---------- */
-function Hero({ m, dark, onStart, onTry, onTour }: { m: Money; dark: boolean; onStart: () => void; onTry: () => void; onTour: () => void }) {
+function Hero({ m, dark, onStart, onTry, onTour, jump, askDemo }: { m: Money; dark: boolean; onStart: () => void; onTry: () => void; onTour: () => void; jump: (id: string) => void; askDemo: (i: number) => void }) {
   return (
     <section className="relative px-4 pb-16 pt-12 sm:px-6 lg:pb-24 lg:pt-20">
       <div aria-hidden className="pointer-events-none absolute inset-0 -z-10" style={{ background: 'radial-gradient(900px 500px at 85% 10%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%), radial-gradient(700px 400px at 0% 90%, color-mix(in srgb, var(--good) 14%, transparent), transparent 70%)' }} />
@@ -182,7 +186,7 @@ function Hero({ m, dark, onStart, onTry, onTour }: { m: Money; dark: boolean; on
               </div>
               {/* the real app, as a browser window */}
               <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                className="absolute -bottom-8 left-[6%] right-[14%] overflow-hidden rounded-2xl border border-line bg-surface shadow-pop">
+                className="absolute -bottom-10 -left-[3%] right-[30%] overflow-hidden rounded-2xl border border-line bg-surface shadow-pop">
                 <div className="flex items-center gap-1.5 border-b border-line px-3 py-2">
                   <i className="h-2.5 w-2.5 rounded-full bg-bad" /><i className="h-2.5 w-2.5 rounded-full bg-warn" /><i className="h-2.5 w-2.5 rounded-full bg-good" />
                   <span className="ml-2 truncate font-mono text-[10.5px] text-muted">tally · your money</span>
@@ -190,12 +194,12 @@ function Hero({ m, dark, onStart, onTry, onTour }: { m: Money; dark: boolean; on
                 <img src={dark ? shotDark : shotLight} alt="Tally's home screen showing safe to spend, money health and monthly totals" className="block w-full" decoding="async" />
               </motion.div>
               <motion.img src={shotPhone} alt="Tally on a phone" decoding="async" initial={{ opacity: 0, y: 40, rotate: 6 }} animate={{ opacity: 1, y: 0, rotate: 4 }} transition={{ delay: 0.45, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
-                className="absolute -bottom-12 -right-2 w-[27%] rounded-[22px] border-4 border-[#0b0f1d] shadow-pop sm:-right-6" />
-              <Float className="absolute -left-3 top-6 sm:-left-8" delay={0.6}>
+                className="absolute -bottom-14 right-[2%] w-[26%] rounded-[22px] border-4 border-[#0b0f1d] shadow-pop" />
+              <Float className="absolute -left-3 top-6 sm:-left-8" delay={0.6} onClick={() => jump('whatif')} label="Try the safe-to-spend calculator">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Safe today</p>
                 <p className="font-display text-[22px] font-extrabold text-good tnum">{m(77)}<span className="text-[12px] font-semibold text-ink2"> / day</span></p>
               </Float>
-              <Float className="absolute -right-2 top-[38%] hidden sm:block sm:-right-8" delay={0.8}>
+              <Float className="absolute -right-2 top-[38%] hidden sm:block sm:-right-8" delay={0.8} onClick={() => askDemo(1)} label="Ask Tally why the health score is 72">
                 <p className="flex items-center gap-1.5 text-[12.5px] font-bold"><Gauge size={14} className="text-accent" />Money health <span className="text-good">72</span></p>
                 <p className="text-[11.5px] text-ink2">Doing well · up 8 this month</p>
               </Float>
@@ -207,20 +211,42 @@ function Hero({ m, dark, onStart, onTry, onTour }: { m: Money; dark: boolean; on
     </section>
   )
 }
-const Float = ({ children, className, delay }: { children: ReactNode; className: string; delay: number }) => (
-  <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1, y: [0, -6, 0] }} transition={{ opacity: { delay }, scale: { delay }, y: { delay, duration: 4, repeat: Infinity, ease: 'easeInOut' } }}
-    className={`rounded-2xl border border-line px-4 py-3 shadow-pop backdrop-blur-xl ${className}`} style={{ background: 'color-mix(in srgb, var(--surface) 88%, transparent)' }}>{children}</motion.div>
+const Float = ({ children, className, delay, onClick, label }: { children: ReactNode; className: string; delay: number; onClick: () => void; label: string }) => (
+  <motion.button type="button" onClick={onClick} aria-label={label} title={label} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1, y: [0, -6, 0] }} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.96 }}
+    transition={{ opacity: { delay }, scale: { delay: 0 }, y: { delay, duration: 4, repeat: Infinity, ease: 'easeInOut' } }}
+    className={`rounded-2xl border border-line px-4 py-3 text-left shadow-pop backdrop-blur-xl hover:border-accent ${className}`} style={{ background: 'color-mix(in srgb, var(--surface) 88%, transparent)' }}>{children}</motion.button>
 )
 
-function TrustStrip() {
-  const items: [typeof Check, string, string][] = [[ShieldCheck, 'No bank login', 'You stay in control'], [WifiOff, 'Offline first', 'Saved on your device'], [Sparkles, 'Plain language', 'No finance jargon'], [FileSpreadsheet, 'Yours to keep', 'CSV, Excel, backups']]
+function TrustStrip({ jump }: { jump: (id: string) => void }) {
+  const items: [typeof Check, string, string, string, string][] = [
+    [ShieldCheck, 'No bank login', 'You stay in control', 'Tally never asks for your bank password. You add entries yourself, or import a CSV file your bank gives you.', 'privacy'],
+    [WifiOff, 'Offline first', 'Saved on your device', 'Everything is saved in your browser first, so Tally opens instantly and works on a plane. With an account, it syncs when you are back online.', 'privacy'],
+    [Sparkles, 'Plain language', 'No finance jargon', 'Every number comes with a short, friendly explanation. Tap any ? in the app for a simple answer.', 'ai'],
+    [FileSpreadsheet, 'Yours to keep', 'CSV, Excel, backups', 'Take everything with you at any time: a CSV for spreadsheets, an Excel workbook, or a full backup to restore later.', 'faq'],
+  ]
+  const [open, setOpen] = useState<number | null>(null)
   return (
     <div className="border-y border-line bg-surface/50 px-4 py-6 sm:px-6">
-      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-4 md:grid-cols-4">
-        {items.map(([I, t, s]) => (
-          <div key={t} className="flex items-center gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent"><I size={19} /></span><span><b className="block text-[14.5px]">{t}</b><span className="text-[12.5px] text-muted">{s}</span></span></div>
+      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-3 md:grid-cols-4">
+        {items.map(([I, t, s], n) => (
+          <button key={t} type="button" onClick={() => setOpen(open === n ? null : n)} aria-expanded={open === n}
+            className={`flex items-center gap-3 rounded-2xl border p-2.5 text-left transition-colors ${open === n ? 'border-accent bg-accent-soft' : 'border-transparent hover:border-line'}`}>
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent-soft text-accent"><I size={19} /></span>
+            <span className="min-w-0 flex-1"><b className="block text-[14.5px]">{t}</b><span className="text-[12.5px] text-muted">{s}</span></span>
+            <motion.span animate={{ rotate: open === n ? 180 : 0 }} className="text-muted"><ChevronDown size={16} /></motion.span>
+          </button>
         ))}
       </div>
+      <AnimatePresence initial={false}>
+        {open != null && (
+          <motion.div key={open} initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mx-auto max-w-6xl overflow-hidden">
+            <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-line bg-surface px-4 py-3 text-[14.5px] text-ink2" role="status">
+              <span className="flex-1">{items[open][3]}</span>
+              <button type="button" onClick={() => jump(items[open][4])} className="font-semibold text-accent">Read more →</button>
+            </p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -327,52 +353,56 @@ function Shift() {
 /* ---------- Ask Tally ---------- */
 const DEMO_QA = (m: Money): { q: string; a: string; pills: [string, string][] }[] => [
   { q: `Can I spend ${m(45)} on dinner tonight?`, a: `Yes. You have ${m(77)} a day free after rent, your phone bill and your savings. Dinner for ${m(45)} still leaves about ${m(73)} a day until payday. Enjoy it.`, pills: [['Safe today', m(77)], ['Bills still to pay', m(178)], ['Days left', '18']] },
-  { q: 'Why is my health score 70?', a: `You get full marks for saving and paying bills on time. You lose points because spending is heading about ${m(240)} over your plan. Holding back on eating out for a week would lift you to around 85.`, pills: [['Score', '70 of 100'], ['Over plan', m(240)], ['Biggest pot', 'Eating out']] },
+  { q: 'Why is my health score 72?', a: `You get full marks for saving and paying bills on time. You lose points because spending is heading about ${m(240)} over your plan. Holding back on eating out for a week would lift you to around 85.`, pills: [['Score', '72 of 100'], ['Over plan', m(240)], ['Biggest pot', 'Eating out']] },
   { q: 'When will my holiday jar be full?', a: `At your recent pace of ${m(150)} a month, Summer in Porto is full in about 7 months, a little after your date. Adding ${m(30)} more each month gets you there on time.`, pills: [['Saved', m(1380)], ['Target', m(2400)], ['Needed / month', m(180)]] },
   { q: 'Which debt should I pay off first?', a: `Your store card. At 24.9% it costs the most. Putting your extra ${m(150)} a month there clears it in about 9 months and saves roughly ${m(310)} in interest.`, pills: [['Highest rate', '24.9%'], ['Extra / month', m(150)], ['Interest saved', m(310)]] },
+  { q: `What if I save ${m(100)} more a month?`, a: `You'd still have about ${m(71)} a day to spend, and your rainy-day fund would reach three months of essentials by next spring instead of next autumn.`, pills: [['Safe a day', `${m(77)} → ${m(71)}`], ['Cushion', '3 months'], ['Sooner by', '6 months']] },
 ]
-function AskSection({ m }: { m: Money }) {
+function AskSection({ m, n, setN, askDemo, ownQ, setOwnQ }: { m: Money; n: number; setN: (i: number) => void; askDemo: (i: number) => void; ownQ: string; setOwnQ: (q: string) => void }) {
   const qa = useMemo(() => DEMO_QA(m), [m])
-  const [n, setN] = useState(0)
   const [typed, setTyped] = useState('')
   const [thinking, setThinking] = useState(true)
+  const [cmp, setCmp] = useState<'bot' | 'tally'>('tally')
+  const [own, setOwn] = useState('')
   const ref = useRef<HTMLDivElement>(null)
   const seen = useInView(ref, { once: true, margin: '-100px' })
+  const cur = ownQ ? { q: ownQ, a: `Great question. Once you've set up Tally, Ask Tally answers this from your own bills, plan and goals in a few seconds. Here it can only show example answers, so try one of the questions below.`, pills: [] as [string, string][] } : qa[n]
   useEffect(() => {
     if (!seen) return
     setTyped(''); setThinking(true)
-    const a = qa[n].a
+    const a = cur.a
     let k = 0, t: ReturnType<typeof setInterval> | undefined
     const s = setTimeout(() => { setThinking(false); t = setInterval(() => { k += 3; setTyped(a.slice(0, k)); if (k >= a.length) clearInterval(t) }, 16) }, 700)
     return () => { clearTimeout(s); clearInterval(t) }
-  }, [n, qa, seen])
+  }, [cur.a, seen])
   const points: [string, string][] = [['Answers from your own numbers', 'Ask Tally reads your bills, plan, goals and recent spending before it replies.'], ['Nothing to copy and paste', 'No bank statements to upload. Tally already knows your picture.'], ['Plain words', 'Short, friendly answers with the one number that matters.'], ['Tally counts, AI explains', "Tally's own calculations produce the numbers. The AI explains them clearly."]]
+  const pick = (i: number) => { setOwnQ(''); setN(i) }
   return (
     <Section id="ai">
       <div className="grid items-start gap-12 lg:grid-cols-[1fr_1.1fr]">
         <div>
           <Head center={false} eyebrow="Ask Tally · AI" title="Your money has answers. Just ask." sub="Get clear answers about your own money, not generic tips. Ask how much you can spend, why your score changed, or when a goal will be done." />
-          <ul className="flex flex-col gap-4">
-            {points.map(([t, s], i) => <Reveal key={t} delay={i * 0.05}><li className="flex gap-3"><CheckCircle2 size={20} className="mt-0.5 shrink-0 text-good" /><span><b className="block">{t}</b><span className="text-[14.5px] text-ink2">{s}</span></span></li></Reveal>)}
+          <ul className="flex flex-col gap-1">
+            {points.map(([t, s], i) => <Reveal key={t} delay={i * 0.05}><li><button type="button" onClick={() => pick(i === 2 ? 1 : i === 3 ? 4 : i)} className="flex w-full gap-3 rounded-xl p-2 text-left hover:bg-surface2"><CheckCircle2 size={20} className="mt-0.5 shrink-0 text-good" /><span><b className="block">{t}</b><span className="text-[14.5px] text-ink2">{s}</span></span></button></li></Reveal>)}
           </ul>
           <Reveal><p className="mt-6 flex gap-3 rounded-2xl border border-line bg-surface p-4 text-[14px] text-ink2"><ShieldCheck size={20} className="shrink-0 text-good" /><span><b className="text-ink">You stay in charge.</b> Ask Tally only reads a summary of your dashboard when you ask a question, and you can see exactly what it reads. It can't move money or change anything.</span></p></Reveal>
         </div>
         <Reveal>
-          <div ref={ref}>
+          <div ref={ref} id="ask-demo" className="scroll-mt-24">
           <Panel className="overflow-hidden">
             <div className="flex items-center gap-3 border-b border-line px-5 py-4">
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent"><Bot size={20} /></span>
               <span className="min-w-0 flex-1"><b className="flex items-center gap-2">Ask Tally <span className="inline-flex items-center gap-1 rounded-full bg-good-soft px-2 py-0.5 text-[11px] font-semibold text-good"><i className="h-1.5 w-1.5 rounded-full bg-good" />Ready</span></b><span className="text-[12px] text-muted">Reading: {m(3811)} spent · {m(77)}/day safe · example data</span></span>
             </div>
             <div className="min-h-[300px] space-y-3 p-5" aria-live="polite">
-              <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-accent px-4 py-2.5 text-[14.5px] text-accent-ink">{qa[n].q}</p>
+              <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-accent px-4 py-2.5 text-[14.5px] text-accent-ink">{cur.q}</p>
               <div className="flex gap-2.5">
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent"><Sparkles size={15} /></span>
-                <div className="min-w-0 flex-1 rounded-2xl rounded-tl-md border border-line bg-surface2/60 px-4 py-3 text-[14.5px] leading-relaxed">
+                <div className="min-w-0 flex-1 rounded-2xl rounded-tl-md border border-line bg-surface2/60 px-4 py-3 text-[14.5px] leading-relaxed" data-testid="demo-answer">
                   {thinking ? <span className="inline-flex gap-1 py-1" aria-label="Thinking">{[0, 1, 2].map((d) => <motion.i key={d} className="h-2 w-2 rounded-full bg-muted" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: d * 0.15 }} />)}</span> : typed}
-                  {!thinking && typed.length >= qa[n].a.length && (
+                  {!thinking && typed.length >= cur.a.length && cur.pills.length > 0 && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-3 flex flex-wrap gap-2 border-t border-line pt-3">
-                      {qa[n].pills.map(([k, v]) => <span key={k} className="rounded-lg border border-line px-2.5 py-1 text-[12.5px] text-ink2">{k}: <b className="text-ink tnum">{v}</b></span>)}
+                      {cur.pills.map(([k, v]) => <span key={k} className="rounded-lg border border-line px-2.5 py-1 text-[12.5px] text-ink2">{k}: <b className="text-ink tnum">{v}</b></span>)}
                     </motion.div>
                   )}
                 </div>
@@ -381,8 +411,12 @@ function AskSection({ m }: { m: Money }) {
             <div className="border-t border-line p-5">
               <p className="mb-2.5 text-[11.5px] font-bold uppercase tracking-wider text-muted">Try asking</p>
               <div className="flex flex-wrap gap-2">
-                {qa.map((x, i) => <button key={x.q} type="button" onClick={() => setN(i)} aria-pressed={n === i} className={`rounded-xl border px-3 py-2 text-left text-[13.5px] font-medium transition-colors ${n === i ? 'border-accent bg-accent-soft text-accent' : 'border-line hover:border-line2'}`}>{x.q}</button>)}
+                {qa.map((x, i) => <button key={x.q} type="button" onClick={() => pick(i)} aria-pressed={!ownQ && n === i} className={`rounded-xl border px-3 py-2 text-left text-[13.5px] font-medium transition-colors ${!ownQ && n === i ? 'border-accent bg-accent-soft text-accent' : 'border-line hover:border-line2'}`}>{x.q}</button>)}
               </div>
+              <form onSubmit={(e) => { e.preventDefault(); if (own.trim()) { setOwnQ(own.trim()); setOwn('') } }} className="mt-3 flex gap-2">
+                <input value={own} onChange={(e) => setOwn(e.target.value)} maxLength={140} placeholder="Or type your own question…" aria-label="Type a question for the demo" className="field flex-1 !rounded-xl !py-2 text-[14px]" />
+                <button type="submit" className="rounded-xl bg-accent px-4 text-[14px] font-semibold text-accent-ink disabled:opacity-50" disabled={!own.trim()}>Ask</button>
+              </form>
               <p className="mt-3 text-[11.5px] text-muted">Example answers on example data. Real answers use your own numbers.</p>
             </div>
           </Panel>
@@ -390,25 +424,36 @@ function AskSection({ m }: { m: Money }) {
         </Reveal>
       </div>
 
-      <div className="mt-20 grid gap-5 md:grid-cols-2">
-        <Reveal><Panel className="h-full p-6">
-          <p className="mb-3 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider text-muted"><XCircle size={16} />A general chatbot</p>
-          <p className="mb-4 rounded-xl border border-line bg-surface2/60 px-4 py-3 font-mono text-[13px] text-ink2">"Please paste your bank statement first…"</p>
-          <ul className="space-y-1.5 text-[14px] text-ink2"><li>• Has to be told everything, every time</li><li>• Generic tips that fit nobody</li><li>• No idea what bills are coming</li></ul>
-        </Panel></Reveal>
-        <Reveal delay={0.08}><Panel className="h-full p-6 ring-1 ring-[var(--good)]">
-          <p className="mb-3 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider text-good"><Sparkles size={16} />Ask Tally</p>
-          <p className="mb-4 rounded-xl bg-good-soft px-4 py-3 text-[13.5px] font-semibold text-good">"Safe today: {m(77)} · Bills still to pay: {m(178)}"</p>
-          <ul className="space-y-1.5 text-[14px] text-ink2"><li>• Starts from your real dashboard</li><li>• Knows the bills still to come</li><li>• Tracks your goals, trips and debts</li></ul>
-        </Panel></Reveal>
+      <div className="mt-20 grid gap-5 md:grid-cols-2" role="group" aria-label="Compare a general chatbot with Ask Tally">
+        {(['bot', 'tally'] as const).map((k, i) => {
+          const on = cmp === k, bot = k === 'bot'
+          return (
+            <Reveal key={k} delay={i * 0.08}><button type="button" onClick={() => setCmp(k)} aria-pressed={on} className={`h-full w-full rounded-[24px] border bg-surface p-6 text-left shadow-card transition-all ${on ? (bot ? 'border-bad ring-1 ring-[var(--bad)]' : 'border-good ring-1 ring-[var(--good)]') : 'border-line opacity-80 hover:opacity-100'}`}>
+              <p className={`mb-3 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider ${bot ? 'text-muted' : 'text-good'}`}>{bot ? <XCircle size={16} /> : <Sparkles size={16} />}{bot ? 'A general chatbot' : 'Ask Tally'}</p>
+              <p className={`mb-4 rounded-xl px-4 py-3 text-[13.5px] ${bot ? 'border border-line bg-surface2/60 font-mono text-ink2' : 'bg-good-soft font-semibold text-good'}`}>{bot ? '"Please paste your bank statement first…"' : `"Safe today: ${m(77)} · Bills still to pay: ${m(178)}"`}</p>
+              <ul className="space-y-1.5 text-[14px] text-ink2">{(bot ? ['Has to be told everything, every time', 'Generic tips that fit nobody', 'No idea what bills are coming'] : ['Starts from your real dashboard', 'Knows the bills still to come', 'Tracks your goals, trips and debts']).map((x) => <li key={x}>• {x}</li>)}</ul>
+              <AnimatePresence>{on && (
+                <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+                  <div className="mt-4 space-y-2 border-t border-line pt-4 text-[13.5px]">
+                    <p className="ml-auto w-fit rounded-xl bg-accent px-3 py-1.5 text-accent-ink">Can I afford dinner out tonight?</p>
+                    <p className="w-fit max-w-[92%] rounded-xl border border-line bg-surface2/60 px-3 py-2">{bot ? "I can't see your finances. Could you tell me your income, your bills, what you've spent this month and any savings goals?" : `Yes. About ${m(45)} still leaves ${m(73)} a day until payday, after rent and bills.`}</p>
+                  </div>
+                </motion.div>
+              )}</AnimatePresence>
+              {!on && <p className="mt-4 text-[12.5px] font-semibold text-accent">Tap to see it answer →</p>}
+            </button></Reveal>
+          )
+        })}
       </div>
 
-      <div className="mt-20"><Head title="Questions people ask every week" sub="Everyday decisions, answered in seconds." /></div>
+      <div className="mt-20"><Head title="Questions people ask every week" sub="Everyday decisions, answered in seconds. Tap one to see Ask Tally answer it." /></div>
       <div className="grid gap-5 md:grid-cols-3">
-        {[[ShieldCheck, 'Know your daily limit', 'How much can you spend today without missing a bill?', `"Can I spend ${m(45)} on dinner tonight?"`], [Target, 'Track your goals', 'How far away is the target, and when will you get there?', '"When will my holiday jar be full?"'], [Zap, 'Try what-ifs', 'See what happens if you save or spend a little differently.', `"What if I save ${m(100)} more a month?"`]].map(([I, t, s, q], i) => {
-          const Icon = I as typeof Check
-          return <Reveal key={t as string} delay={i * 0.06}><Panel className="h-full p-6"><span className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-accent-soft text-accent"><Icon size={20} /></span><b className="block text-[17px]">{t as string}</b><p className="mt-1 text-[14.5px] text-ink2">{s as string}</p><p className="mt-4 rounded-xl border border-line bg-surface2/50 px-3.5 py-2.5 font-mono text-[12.5px] italic text-accent">{q as string}</p></Panel></Reveal>
-        })}
+        {([[ShieldCheck, 'Know your daily limit', 'How much can you spend today without missing a bill?', 0], [Target, 'Track your goals', 'How far away is the target, and when will you get there?', 2], [Zap, 'Try what-ifs', 'See what happens if you save or spend a little differently.', 4]] as const).map(([I, t, s, qi], i) => (
+          <Reveal key={t} delay={i * 0.06}><button type="button" onClick={() => askDemo(qi)} className="h-full w-full rounded-[24px] border border-line bg-surface p-6 text-left shadow-card transition-all hover:-translate-y-1 hover:border-accent">
+            <span className="mb-4 grid h-11 w-11 place-items-center rounded-xl bg-accent-soft text-accent"><I size={20} /></span><b className="block text-[17px]">{t}</b><p className="mt-1 text-[14.5px] text-ink2">{s}</p>
+            <p className="mt-4 flex items-center justify-between gap-2 rounded-xl border border-line bg-surface2/50 px-3.5 py-2.5 font-mono text-[12.5px] italic text-accent"><span>"{qa[qi].q}"</span><ArrowRight size={15} className="shrink-0" /></p>
+          </button></Reveal>
+        ))}
       </div>
     </Section>
   )
@@ -504,47 +549,81 @@ function Modules() {
   )
 }
 
-function FeatureChips() {
-  const chips: [typeof Check, string, string, string][] = [[Sparkles, 'Smart tips', 'From your own numbers', 'var(--warn)'], [WifiOff, 'Works offline', 'Always available', 'var(--accent)'], [Lock, 'Private', 'No ads, no tracking', 'var(--good)'], [Bell, 'Bills coming up', 'Next two weeks', 'var(--accent)'], [FileUp, 'Bank CSV import', 'Checked before saving', 'var(--accent)'], [Cloud, 'Cloud sync', 'Optional, your account', 'var(--good)']]
+function FeatureChips({ jump }: { jump: (id: string) => void }) {
+  const chips: [typeof Check, string, string, string, string, string][] = [
+    [Sparkles, 'Smart tips', 'From your own numbers', 'var(--warn)', 'Tally spots things like a category running higher than usual or a subscription you could cancel, and tells you in one sentence.', 'features'],
+    [WifiOff, 'Works offline', 'Always available', 'var(--accent)', 'Add entries on a plane or in a basement shop. Nothing waits for the internet.', 'privacy'],
+    [Lock, 'Private', 'No ads, no tracking', 'var(--good)', 'No adverts, no selling data and no analytics on your money. Without an account, nothing leaves your device.', 'privacy'],
+    [Bell, 'Bills coming up', 'Next two weeks', 'var(--accent)', 'Home lists every bill due in the next two weeks, so nothing catches you out. Tick them off as they are paid.', 'journey'],
+    [FileUp, 'Bank CSV import', 'Checked before saving', 'var(--accent)', 'Import your bank\'s CSV file. Tally previews it first, flags possible duplicates and unreadable rows, and only saves when you say so.', 'features'],
+    [Cloud, 'Cloud sync', 'Optional, your account', 'var(--good)', 'Log in to keep your phone and laptop in step. If both change, Tally asks which copy to keep, and never silently throws one away.', 'faq'],
+  ]
+  const [open, setOpen] = useState<number | null>(null)
   return (
     <div className="border-t border-line bg-surface/50 px-4 py-10 sm:px-6">
-      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-5 sm:grid-cols-3 lg:grid-cols-6">
+      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         {chips.map(([I, t, s, c], n) => (
-          <Reveal key={t} delay={n * 0.04}><div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-line" style={{ color: c, background: `color-mix(in srgb, ${c} 12%, transparent)` }}><I size={19} /></span><span><b className="block text-[14px]">{t}</b><span className="text-[12px] text-muted">{s}</span></span></div></Reveal>
+          <Reveal key={t} delay={n * 0.04}><button type="button" onClick={() => setOpen(open === n ? null : n)} aria-expanded={open === n}
+            className={`flex w-full items-center gap-3 rounded-2xl border p-2 text-left transition-colors ${open === n ? 'border-accent bg-accent-soft' : 'border-transparent hover:border-line'}`}>
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-line" style={{ color: c, background: `color-mix(in srgb, ${c} 12%, transparent)` }}><I size={19} /></span><span><b className="block text-[14px]">{t}</b><span className="text-[12px] text-muted">{s}</span></span>
+          </button></Reveal>
         ))}
       </div>
+      <AnimatePresence initial={false}>
+        {open != null && (
+          <motion.div key={open} initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="mx-auto max-w-6xl overflow-hidden">
+            <p className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-2xl border border-line bg-surface px-4 py-3 text-[14.5px] text-ink2" role="status"><span className="flex-1"><b className="text-ink">{chips[open][1]}.</b> {chips[open][4]}</span><button type="button" onClick={() => jump(chips[open][5])} className="font-semibold text-accent">See more →</button></p>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
 
 /* ---------- a paycheck finding its place ---------- */
 function Cascade({ m }: { m: Money }) {
-  const rows: [typeof Check, string, number, string][] = [[Banknote, 'Pay comes in', 3200, 'var(--good)'], [Zap, 'Bills and regular payments', -1250, 'var(--warn)'], [Wallet, 'Everyday spending plan', -1100, 'var(--ink2)'], [Target, 'Savings goals', -400, 'var(--accent)'], [ShieldCheck, 'Safety cushion', -250, 'var(--good)'], [TrendingUp, 'Long-term investing', -200, 'var(--accent)']]
-  let bal = 0
+  const [pay, setPay] = useState(3200)
+  const [share, setShare] = useState([39, 34, 13, 8, 6])
+  const rows: [typeof Check, string, string][] = [[Zap, 'Bills and regular payments', 'var(--warn)'], [Wallet, 'Everyday spending plan', 'var(--ink2)'], [Target, 'Savings goals', 'var(--accent)'], [ShieldCheck, 'Safety cushion', 'var(--good)'], [TrendingUp, 'Long-term investing', 'var(--accent)']]
+  const used = share.reduce((a, b) => a + b, 0)
+  const left = pay * (100 - used) / 100
+  const bump = (i: number, d: number) => setShare((x) => x.map((v, j) => (j === i ? Math.max(0, Math.min(90, v + d)) : v)))
+  let bal = pay
   return (
     <Section id="cascade">
-      <div className="grid items-center gap-12 lg:grid-cols-2">
+      <div className="grid items-start gap-12 lg:grid-cols-2">
         <div>
-          <Head center={false} title="Watch every payday find its place" sub="Tally helps you give every bit of your pay a job, so nothing is left to drift. When the last line reaches zero, your whole month is planned." />
+          <Head center={false} title="Watch every payday find its place" sub="Tally helps you give every bit of your pay a job, so nothing is left to drift. Move the slider and adjust each share until the last line reaches zero." />
           <Reveal><div className="relative aspect-[4/3] overflow-hidden rounded-[24px] border border-line shadow-card"><Photo src={growth} alt="A small plant growing out of a pile of coins" /></div></Reveal>
         </div>
-        <ol className="flex flex-col">
-          {rows.map(([I, t, v, c], n) => {
-            bal += v
-            return (
-              <li key={t} className="flex flex-col items-center">
-                {n > 0 && <motion.i className="h-6 w-px bg-line2" initial={{ scaleY: 0 }} whileInView={{ scaleY: 1 }} viewport={{ once: true }} transition={{ delay: n * 0.12 }} style={{ originY: 0 }} />}
-                <motion.div initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-40px' }} transition={{ delay: n * 0.12 }}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-line bg-surface px-4 py-3.5 shadow-card">
+        <div>
+          <div className="mb-4 rounded-2xl border border-line bg-surface p-4 shadow-card">
+            <div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-xl bg-good-soft text-good"><Banknote size={18} /></span><span className="flex-1 font-semibold">Your pay this month</span><b className="font-mono text-[18px] text-good tnum">+ {m(pay)}</b></div>
+            <input type="range" min={800} max={9000} step={50} value={pay} onChange={(e) => setPay(+e.target.value)} aria-label="Your pay this month" className="mt-3 w-full accent-[var(--good)]" />
+          </div>
+          <ol className="flex flex-col gap-2.5">
+            {rows.map(([I, t, c], n) => {
+              const v = pay * share[n] / 100
+              bal -= v
+              return (
+                <motion.li key={t} initial={{ opacity: 0, y: 16 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, margin: '-40px' }} transition={{ delay: n * 0.1 }}
+                  className="flex items-center gap-3 rounded-2xl border border-line bg-surface px-3 py-3 shadow-card">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ color: c, background: `color-mix(in srgb, ${c} 14%, transparent)` }}><I size={18} /></span>
-                  <span className="min-w-0 flex-1 font-semibold">{t}</span>
-                  <span className="text-right"><b className="block font-mono text-[15px] tnum" style={{ color: v > 0 ? 'var(--good)' : undefined }}>{v > 0 ? '+' : '−'} {m(Math.abs(v))}</b><span className="text-[11.5px] text-muted">left {m(bal)}</span></span>
-                </motion.div>
-              </li>
-            )
-          })}
-          <motion.li initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ delay: 0.9 }} className="mt-4 text-center text-[14px] font-semibold text-good"><CheckCircle2 size={16} className="mr-1 inline" />Every bit has a job. Example amounts.</motion.li>
-        </ol>
+                  <span className="min-w-0 flex-1"><b className="block truncate text-[14.5px]">{t}</b><span className="text-[12px] text-muted">{share[n]}% · left after this {m(bal)}</span></span>
+                  <b className="font-mono text-[14.5px] tnum">− {m(v)}</b>
+                  <span className="flex flex-col gap-0.5">
+                    <button type="button" onClick={() => bump(n, 1)} aria-label={`More for ${t}`} className="grid h-6 w-7 place-items-center rounded-md border border-line text-[13px] font-bold hover:border-accent">+</button>
+                    <button type="button" onClick={() => bump(n, -1)} aria-label={`Less for ${t}`} className="grid h-6 w-7 place-items-center rounded-md border border-line text-[13px] font-bold hover:border-accent">−</button>
+                  </span>
+                </motion.li>
+              )
+            })}
+          </ol>
+          <p className={`mt-4 flex items-center justify-center gap-1.5 rounded-2xl p-3 text-center text-[14.5px] font-semibold ${Math.abs(left) < 0.5 ? 'bg-good-soft text-good' : left > 0 ? 'bg-warn-soft text-warn' : 'bg-bad-soft text-bad'}`} aria-live="polite" data-testid="cascade-left">
+            {Math.abs(left) < 0.5 ? <><CheckCircle2 size={16} />Every bit has a job. Your whole month is planned.</> : left > 0 ? <>{m(left)} still has no job. Give it one.</> : <>You've planned {m(-left)} more than you earn.</>}
+          </p>
+          <button type="button" onClick={() => { setPay(3200); setShare([39, 34, 13, 8, 6]) }} className="mt-2 w-full text-center text-[12.5px] font-semibold text-muted hover:text-ink">Reset example</button>
+        </div>
       </div>
     </Section>
   )
@@ -604,19 +683,34 @@ function Together({ m }: { m: Money }) {
 
 /* ---------- habits ---------- */
 function Habits() {
-  const items: [typeof Check, string, string, number, boolean][] = [[Flame, 'No-spend weekend', 'Nothing on extras, Saturday and Sunday', 50, false], [Trophy, 'Fill the rainy-day jar', 'Three months of essentials saved', 100, true], [Target, 'Monthly no-spend days', '12 days without extras this month', 75, false]]
+  const m = useDemoMoney()
+  const [days, setDays] = useState({ sat: true, sun: false })
+  const [jar, setJar] = useState(2100)
+  const [cells, setCells] = useState(() => Array.from({ length: 16 }, (_, i) => [0, 1, 3, 4, 6, 8, 9, 11, 12].includes(i)))
+  const weekend = (+days.sat + +days.sun) * 50, jarP = Math.min(100, Math.round(jar / 3000 * 100)), count = cells.filter(Boolean).length, nsP = Math.min(100, Math.round(count / 12 * 100))
+  const cheer = (e: React.MouseEvent, before: number, after: number) => { if (before < 100 && after >= 100) celebrate(e, true) }
+  const card = (icon: ReactNode, title: string, sub: string, p: number, body: ReactNode) => (
+    <Panel className="h-full p-6">
+      <div className="flex items-start justify-between"><span className="grid h-12 w-12 place-items-center rounded-xl bg-accent-soft text-accent">{icon}</span>{p >= 100 ? <span className="inline-flex items-center gap-1 rounded-lg bg-good-soft px-2.5 py-1 text-[12px] font-semibold text-good"><CheckCircle2 size={13} />Done</span> : <span className="rounded-lg border border-line px-2.5 py-1 text-[12px] text-ink2">In progress</span>}</div>
+      <h3 className="mt-5 text-[18px] font-bold">{title}</h3><p className="text-[14px] text-ink2">{sub}</p>
+      <div className="mt-4">{body}</div>
+      <div className="mt-5 flex justify-between text-[13px]"><span className="text-muted">Progress</span><b className="tnum">{p}%</b></div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface2"><motion.div className="h-full rounded-full" style={{ background: p >= 100 ? 'var(--good)' : 'var(--accent)' }} initial={{ width: 0 }} whileInView={{ width: `${p}%` }} animate={{ width: `${p}%` }} viewport={{ once: true }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }} /></div>
+    </Panel>
+  )
+  const pill = (on: boolean) => `rounded-xl border px-3 py-2 text-[13.5px] font-semibold transition-colors ${on ? 'border-good bg-good-soft text-good' : 'border-line hover:border-line2'}`
   return (
     <Section id="habits">
-      <Head title="Small wins that add up" sub="Challenges, streaks and jars turn good money habits into something you actually look forward to." />
+      <Head title="Small wins that add up" sub="Challenges, streaks and jars turn good money habits into something you look forward to. Go on, try them." />
       <div className="grid gap-5 md:grid-cols-3">
-        {items.map(([I, t, s, p, done], n) => (
-          <Reveal key={t} delay={n * 0.07}><Panel className="h-full p-6">
-            <div className="flex items-start justify-between"><span className="grid h-12 w-12 place-items-center rounded-xl bg-accent-soft text-accent"><I size={22} /></span>{done ? <span className="inline-flex items-center gap-1 rounded-lg bg-good-soft px-2.5 py-1 text-[12px] font-semibold text-good"><CheckCircle2 size={13} />Done</span> : <span className="rounded-lg border border-line px-2.5 py-1 text-[12px] text-ink2">In progress</span>}</div>
-            <h3 className="mt-5 text-[18px] font-bold">{t}</h3><p className="text-[14px] text-ink2">{s}</p>
-            <div className="mt-5 flex justify-between text-[13px]"><span className="text-muted">Progress</span><b className="tnum">{p}%</b></div>
-            <div className="mt-2 h-2 overflow-hidden rounded-full bg-surface2"><motion.div className="h-full rounded-full" style={{ background: done ? 'var(--good)' : 'var(--accent)' }} initial={{ width: 0 }} whileInView={{ width: `${p}%` }} viewport={{ once: true }} transition={{ duration: 1.1, delay: 0.2 + n * 0.1, ease: [0.16, 1, 0.3, 1] }} /></div>
-          </Panel></Reveal>
-        ))}
+        <Reveal>{card(<Flame size={22} />, 'No-spend weekend', 'Nothing on extras, Saturday and Sunday', weekend,
+          <div className="flex gap-2">{(['sat', 'sun'] as const).map((d) => <button key={d} type="button" aria-pressed={days[d]} onClick={(e) => { const next = { ...days, [d]: !days[d] }; setDays(next); cheer(e, weekend, (+next.sat + +next.sun) * 50) }} className={pill(days[d])}>{days[d] ? <Check size={14} className="mr-1 inline" /> : null}{d === 'sat' ? 'Saturday' : 'Sunday'}</button>)}</div>)}</Reveal>
+        <Reveal delay={0.07}>{card(<Trophy size={22} />, 'Fill the rainy-day jar', `${m(jar)} of ${m(3000)} saved`, jarP,
+          jarP < 100
+            ? <button type="button" onClick={(e) => { const next = jar + 300; setJar(next); cheer(e, jarP, Math.round(next / 3000 * 100)) }} className={pill(false)}><Plus size={14} className="mr-1 inline" />Add {m(300)}</button>
+            : <button type="button" onClick={() => setJar(2100)} className={pill(true)}>Full! Start again</button>)}</Reveal>
+        <Reveal delay={0.14}>{card(<Target size={22} />, 'No-spend days', `${count} of 12 days without extras · tap a day`, nsP,
+          <div className="grid grid-cols-8 gap-1.5" role="group" aria-label="Days this month">{cells.map((on, i) => <button key={i} type="button" aria-pressed={on} aria-label={`Day ${i + 1}`} onClick={(e) => { const next = cells.map((v, j) => (j === i ? !v : v)); setCells(next); cheer(e, nsP, Math.round(next.filter(Boolean).length / 12 * 100)) }} className={`aspect-square rounded-md text-[10.5px] font-bold ${on ? 'bg-good text-white' : 'bg-surface2 text-muted hover:bg-line'}`}>{i + 1}</button>)}</div>)}</Reveal>
       </div>
     </Section>
   )
@@ -624,7 +718,13 @@ function Habits() {
 
 /* ---------- privacy ---------- */
 function Privacy() {
-  const cards: [typeof Check, string, string][] = [[WifiOff, 'Works anywhere', 'Everything runs in your browser and keeps working offline. Sync catches up when you\'re back online.'], [Lock, 'Private by default', 'Without an account, your data never leaves this device. With one, it\'s stored in your own private space, readable only by your login.'], [ShieldCheck, 'No ads, no tracking', 'No bank logins, no selling data, no analytics on your money.'], [FileSpreadsheet, 'Take it with you', 'Export to CSV or Excel, or download a full backup, whenever you like.']]
+  const cards: [typeof Check, string, string, string][] = [
+    [WifiOff, 'Works anywhere', 'Everything runs in your browser and keeps working offline.', 'Your data is saved in this browser\'s own storage the moment you add it. If you\'re signed in, changes queue up and sync when you\'re back online.'],
+    [Lock, 'Private by default', 'Without an account, your data never leaves this device.', 'With an account, your copy lives in a private database row protected by row-level security, so only your login can read it. Data saved in the browser isn\'t encrypted by Tally, so keep your device locked.'],
+    [ShieldCheck, 'No ads, no tracking', 'No bank logins, no selling data, no analytics on your money.', 'Tally never connects to your bank. Ask Tally only sends a summary of your dashboard when you ask a question, and you can turn it off or see exactly what is sent.'],
+    [FileSpreadsheet, 'Take it with you', 'CSV, Excel or a full backup, whenever you like.', 'Settings → Back up & export gives you a CSV for spreadsheets, an Excel workbook with every part of Tally, and a full backup you can restore on any device.'],
+  ]
+  const [open, setOpen] = useState<number | null>(null)
   return (
     <Section id="privacy">
       <div className="grid items-center gap-12 lg:grid-cols-[1fr_1.1fr]">
@@ -632,11 +732,16 @@ function Privacy() {
           <div className="absolute bottom-4 left-4 right-4 flex items-center gap-3 rounded-2xl border border-line px-4 py-3 backdrop-blur-xl" style={{ background: 'color-mix(in srgb, var(--surface) 85%, transparent)' }}><ShieldCheck size={22} className="text-good" /><span className="text-[14px]"><b>Your data, your rules.</b> <span className="text-ink2">Nothing is shared unless you choose.</span></span></div>
         </div></Reveal>
         <div>
-          <Head center={false} eyebrow="Privacy" title="Your money stays yours" sub="Built from the start to be private, to work offline and to never lock you in." />
+          <Head center={false} eyebrow="Privacy" title="Your money stays yours" sub="Built from the start to be private, to work offline and to never lock you in. Tap a card to see how." />
           <div className="grid gap-4 sm:grid-cols-2">
-            {cards.map(([I, t, s], n) => <Reveal key={t} delay={n * 0.05}><div className="h-full rounded-2xl border border-line bg-surface p-5"><I size={22} className="text-accent" /><b className="mt-3 block">{t}</b><p className="mt-1 text-[14px] text-ink2">{s}</p></div></Reveal>)}
+            {cards.map(([I, t, s, more], n) => (
+              <Reveal key={t} delay={n * 0.05}><button type="button" onClick={() => setOpen(open === n ? null : n)} aria-expanded={open === n} className={`h-full w-full rounded-2xl border bg-surface p-5 text-left transition-colors ${open === n ? 'border-accent' : 'border-line hover:border-line2'}`}>
+                <span className="flex items-start justify-between"><I size={22} className="text-accent" /><motion.span animate={{ rotate: open === n ? 45 : 0 }} className="text-muted"><Plus size={18} /></motion.span></span>
+                <b className="mt-3 block">{t}</b><span className="mt-1 block text-[14px] text-ink2">{s}</span>
+                <AnimatePresence initial={false}>{open === n && <motion.span initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="block overflow-hidden"><span className="mt-3 block border-t border-line pt-3 text-[13.5px] text-ink2">{more}</span></motion.span>}</AnimatePresence>
+              </button></Reveal>
+            ))}
           </div>
-          <p className="mt-4 text-[12.5px] text-muted">Data saved in your browser is not encrypted by Tally, so keep your device locked. Ask Tally sends a summary of your dashboard to the AI service only when you ask a question.</p>
         </div>
       </div>
     </Section>

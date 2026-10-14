@@ -2,9 +2,9 @@
 
 A friendly budget dashboard built for people with **no finance or tech background**. It answers one question first, "How much can I safely spend?", then helps with bills, saving and debts in plain language.
 
-Built with **React 18 + TypeScript**, **Vite**, **Tailwind CSS**, **Framer Motion** (animations), **three.js / React Three Fiber** (3D scenes, loaded only when shown), **Recharts** (charts), **Zustand + immer** (state) and **canvas-confetti** (celebrations).
+Built with **React 18 + TypeScript**, **Vite**, **Tailwind CSS**, **Framer Motion** (animations), **three.js / React Three Fiber** (3D scenes, loaded only when shown), **Recharts** (charts), **Zustand + immer** (state), **canvas-confetti** (celebrations), and optionally **Supabase** (accounts and sync) and **Claude** (Ask Tally).
 
-**Local-first and private:** no sign-up, no bank login, no server. Data is kept in this browser's IndexedDB (falling back to localStorage) and is never sent anywhere. It is **not encrypted**, so anyone with access to this browser profile can read it. Make regular backups from Settings.
+**Local-first and private:** accounts are optional and there is no bank login. Without an account, data is kept in this browser's IndexedDB (falling back to localStorage) and never leaves the device. It is **not encrypted** by Tally, so anyone with access to this browser profile can read it. Make regular backups from Settings.
 
 ## Run it
 
@@ -15,7 +15,27 @@ npm run build         # type-check + split, lazy-loaded build in dist/ (host on 
 npm run build:single  # one self-contained file: dist-single/index.html (double-click to open)
 ```
 
-The split build is the fast one: screens, charts, Excel export and three.js download only when needed. The single file inlines everything (about 2.3 MB, 670 KB gzipped) for offline sharing.
+The split build is the fast one: screens, charts, Excel export, three.js, the landing page, Supabase and the Anthropic SDK download only when needed. The single file inlines everything, including the landing-page photos, for offline sharing.
+
+## Accounts, sync and Ask Tally (optional)
+
+Without any setup, Tally runs fully on the device and the landing page's "Log in" explains that accounts aren't switched on. To switch them on:
+
+1. **Create a Supabase project** (free tier is fine) at supabase.com.
+2. **Create the table and rules.** In the SQL editor, run `supabase/migrations/20261014000000_tally_data.sql`, or `supabase db push` with the Supabase CLI. It creates one private row per user (`tally_data`), row-level security so each login can only read and change its own row, and `tally_save()`, which refuses a save if another device saved in between.
+3. **Turn on sign-in methods** under Authentication → Providers: Email (password sign-up, confirmation emails and password reset) and, if you like, Google (needs a Google OAuth client ID and secret). Add your site's address under Authentication → URL Configuration so email links and Google return to it.
+4. **Point Tally at the project.** Copy `.env.example` to `.env.local` and fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (Project Settings → API), then build. The anon key is meant to be public; row-level security protects the data. Alternatively, enter the URL and key in Settings → Account & sync on any copy of Tally.
+5. **Ask Tally through your accounts (optional).** Deploy the function and give it an Anthropic API key:
+   ```bash
+   supabase functions deploy ask-tally
+   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+   # optional: supabase secrets set TALLY_AI_MODEL=claude-haiku-5-5   (default claude-opus-5-5)
+   ```
+   The function only answers signed-in users of your project, keeps the key on the server, and logs nothing about the question. Without it, people can still use Ask Tally with their own Anthropic API key, kept only in their browser.
+
+**How sync behaves.** Changes save on the device first and upload a few seconds later (or when the app is hidden or comes back online). If two devices both changed, Tally asks which copy to keep and sets the other aside on that device, where Settings can bring it back. Example data is never uploaded. The cloud copy is protected by row-level security but is not end-to-end encrypted.
+
+**What Ask Tally sends.** Only when a question is asked: a summary of the dashboard (this month's totals, plan vs spending, the health score and its checks, bills, accounts, goals, debts, trips, and up to 40 recent entries, with or without their descriptions). Settings shows the exact text. It is sent to Claude by Anthropic; Ask Tally can't change any data.
 
 ## What it does
 
@@ -48,11 +68,18 @@ Everything from popular spreadsheet budget planners, as a friendly app:
 - **Speed:** money is added in whole cents, calculations are cached per month, and saves are batched and serialised in idle time. Tested with 10,000 transactions.
 - **Safer data:** CSV import with validation, a preview (good / possible duplicates / unreadable rows) and batched progress. Backups are validated, and you see what a backup contains before it replaces anything (with undo). The quick-add form ignores double clicks.
 
+## Landing page and sign-in
+
+New visitors see a landing page (log in in the top corner) explaining every feature, with photos from Unsplash and real screenshots of the app showing example data. Every section is interactive: a step-by-step "month with Tally", before/after, an Ask Tally demo with example answers, a what-if calculator, feature tiles, a paycheck planner, shared-money tabs, playable habit challenges, privacy details and an FAQ. From there people can create an account, log in (email and password, password reset, Google), or continue without an account.
+
 ## Project layout
 
 ```
 src/
   lib/          dates, money formatting, calculations, sample data, import/export, store, storage (IndexedDB)
+  lib/cloud/    Supabase client, sign-in, sync engine
+  lib/ai/       dashboard summary and the Ask Tally client
   components/   UI kit (cards, sheets, sliders, rings, jars), Pager, charts, all forms, three/ (3D scenes)
-  screens/      Onboarding, Home, Activity, Plan, Bills, Goals, Debts, Worth, Settings
+  screens/      Landing, Auth, Onboarding, Home, Activity, Plan, Bills, Goals, Trips, Debts, Worth, Settings and more
+supabase/       database migration and the ask-tally Edge Function
 ```

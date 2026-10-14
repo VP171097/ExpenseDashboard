@@ -18,23 +18,21 @@ import Onboarding from './screens/Onboarding'
 import Tour from './components/Tour'
 
 /* Home loads with the app; every other screen loads the first time it is opened. */
-const Activity = lazy(() => import('./screens/Activity'))
-const Bills = lazy(() => import('./screens/Bills'))
-const Debts = lazy(() => import('./screens/Debts'))
-const Goals = lazy(() => import('./screens/Goals'))
-const Plan = lazy(() => import('./screens/Plan'))
-const Settings = lazy(() => import('./screens/Settings'))
-const Worth = lazy(() => import('./screens/Worth'))
-const Accounts = lazy(() => import('./screens/Accounts'))
-const Calendar = lazy(() => import('./screens/Calendar'))
-const Household = lazy(() => import('./screens/Household'))
-const Paycheck = lazy(() => import('./screens/Paycheck'))
-const Year = lazy(() => import('./screens/Year'))
-const Trips = lazy(() => import('./screens/Trips'))
+const screens = {
+  Activity: () => import('./screens/Activity'), Bills: () => import('./screens/Bills'), Debts: () => import('./screens/Debts'),
+  Goals: () => import('./screens/Goals'), Plan: () => import('./screens/Plan'), Settings: () => import('./screens/Settings'),
+  Worth: () => import('./screens/Worth'), Accounts: () => import('./screens/Accounts'), Calendar: () => import('./screens/Calendar'),
+  Household: () => import('./screens/Household'), Paycheck: () => import('./screens/Paycheck'), Year: () => import('./screens/Year'),
+  Trips: () => import('./screens/Trips'),
+}
+const Activity = lazy(screens.Activity), Bills = lazy(screens.Bills), Debts = lazy(screens.Debts), Goals = lazy(screens.Goals)
+const Plan = lazy(screens.Plan), Settings = lazy(screens.Settings), Worth = lazy(screens.Worth), Accounts = lazy(screens.Accounts)
+const Calendar = lazy(screens.Calendar), Household = lazy(screens.Household), Paycheck = lazy(screens.Paycheck), Year = lazy(screens.Year)
+const Trips = lazy(screens.Trips)
 const Landing = lazy(() => import('./screens/Landing'))
 const Auth = lazy(() => import('./screens/Auth'))
-// warm the other screens once the dashboard is showing
-const preload = () => ['Activity', 'Bills', 'Plan', 'Calendar', 'Goals'].forEach((n) => import(`./screens/${n}.tsx`).catch(() => {}))
+// fetch every screen shortly after the dashboard shows, so they all still open if the connection drops later
+const preload = () => Object.values(screens).forEach((f) => f().catch(() => {}))
 
 type NavItem = { id: View; label: string; icon: typeof HomeIcon; sub: string; month?: boolean; group: string }
 const NAV: NavItem[] = [
@@ -79,6 +77,8 @@ export default function App() {
   const entry = useEntry((e) => e.screen)
   const auth = useAuth()
   const checked = useSync((x) => x.checked)
+  // once signed in, the log-in screen has done its job
+  useEffect(() => { if (auth.status === 'signed-in' && useEntry.getState().screen === 'auth') useEntry.getState().go('landing') }, [auth.status])
   if (data) setCurrency(data.settings.currency)
   const loading = <div className="grid min-h-screen place-items-center text-[15px] font-semibold text-muted">Loading your money…</div>
   if (!hydrated) return loading
