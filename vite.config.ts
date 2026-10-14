@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import { viteSingleFile } from 'vite-plugin-singlefile'
 
@@ -8,6 +8,8 @@ import { viteSingleFile } from 'vite-plugin-singlefile'
  */
 export default defineConfig(({ mode }) => ({
   base: './',
+  // the single-file build uses the same Supabase project as the normal production build
+  ...(mode === 'single' ? { define: Object.fromEntries(Object.entries(loadEnv('production', '.', 'VITE_')).map(([k, v]) => [`import.meta.env.${k}`, JSON.stringify(v)])) } : {}),
   plugins: [react(), ...(mode === 'single' ? [viteSingleFile()] : [])],
   build: {
     outDir: mode === 'single' ? 'dist-single' : 'dist',
