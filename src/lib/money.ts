@@ -16,6 +16,8 @@ setCurrency('EUR')
 export const currency = () => cur
 /** Whole amounts drop the cents; amounts with cents keep two decimals. */
 export const money = (v: number) => (Math.abs(v) >= 1000 || Number.isInteger(+v) ? NF0 : NF2).format(v || 0)
+/** Always two decimals, for exact figures like an EMI. */
+export const money2 = (v: number) => NF2.format(v || 0)
 export const money0 = (v: number) => NF0.format(Math.round(v || 0))
 export const moneyShort = (v: number) => (Math.abs(v) < 1000 ? NF0.format(v) : NFC.format(v))
 export const symbol = () => (NF0.formatToParts(0).find((p) => p.type === 'currency')?.value ?? cur)

@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import {
-  Banknote, BarChart3, Bot, CalendarClock, Cloud, CloudOff, LogIn, RefreshCw, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Plane, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check,
+  Banknote, BarChart3, Bot, CalendarClock, Cloud, CloudOff, LogIn, RefreshCw, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Plane, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check, Gem, Download,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, type ComponentType } from 'react'
 import Sheets from './components/Sheets'
@@ -12,7 +12,8 @@ import AskTally, { openAsk } from './components/AskTally'
 import { initAuth, useAuth } from './lib/cloud/auth'
 import { resolveConflict, useSync, watchAccount } from './lib/cloud/sync'
 import type { SyncState } from './lib/cloud/engine'
-import { useEntry } from './lib/entry'
+import { useEntry, useLegal } from './lib/entry'
+import Footer from './components/Footer'
 import Home from './screens/Home'
 import Onboarding from './screens/Onboarding'
 import Tour from './components/Tour'
@@ -23,12 +24,13 @@ const screens = {
   Goals: () => import('./screens/Goals'), Plan: () => import('./screens/Plan'), Settings: () => import('./screens/Settings'),
   Worth: () => import('./screens/Worth'), Accounts: () => import('./screens/Accounts'), Calendar: () => import('./screens/Calendar'),
   Household: () => import('./screens/Household'), Paycheck: () => import('./screens/Paycheck'), Year: () => import('./screens/Year'),
-  Trips: () => import('./screens/Trips'),
+  Trips: () => import('./screens/Trips'), Emis: () => import('./screens/Emis'),
 }
 const Activity = lazy(screens.Activity), Bills = lazy(screens.Bills), Debts = lazy(screens.Debts), Goals = lazy(screens.Goals)
 const Plan = lazy(screens.Plan), Settings = lazy(screens.Settings), Worth = lazy(screens.Worth), Accounts = lazy(screens.Accounts)
 const Calendar = lazy(screens.Calendar), Household = lazy(screens.Household), Paycheck = lazy(screens.Paycheck), Year = lazy(screens.Year)
-const Trips = lazy(screens.Trips)
+const Trips = lazy(screens.Trips), Emis = lazy(screens.Emis)
+const Legal = lazy(() => import('./screens/Legal'))
 const Landing = lazy(() => import('./screens/Landing'))
 const Auth = lazy(() => import('./screens/Auth'))
 // fetch every screen shortly after the dashboard shows, so they all still open if the connection drops later
@@ -46,17 +48,18 @@ const NAV: NavItem[] = [
   { id: 'year', label: 'My year', icon: BarChart3, sub: 'The whole year: totals, trends, every category and a look back.', group: 'Planning' },
   { id: 'goals', label: 'Goals', icon: Goal, sub: 'Save up for the things that matter, and try a no-spend challenge.', month: true, group: 'Building wealth' },
   { id: 'debts', label: 'Debts', icon: Scale, sub: 'See when you will be free of loans and cards, and how to get there faster.', group: 'Building wealth' },
+  { id: 'emis', label: 'Loans & EMIs', icon: Landmark, sub: 'Loans and card EMIs: your instalment, how many are paid and when the last one is due.', group: 'Building wealth' },
   { id: 'accounts', label: 'Accounts', icon: PiggyBank, sub: 'Your bank accounts, cards and cash, and money moved between them.', group: 'Building wealth' },
-  { id: 'worth', label: "What I'm worth", icon: Landmark, sub: 'Everything you own minus everything you owe.', group: 'Building wealth' },
+  { id: 'worth', label: "What I'm worth", icon: Gem, sub: 'Everything you own minus everything you owe.', group: 'Building wealth' },
   { id: 'household', label: 'Household', icon: Users, sub: 'Who brings money in and who spends on what.', month: true, group: 'Together' },
-  { id: 'settings', label: 'Settings', icon: Cog, sub: 'Names, currency, accounts and your data.', group: 'Together' },
+  { id: 'settings', label: 'Settings', icon: Cog, sub: 'Payday, working days, look, accounts and your data.', group: 'Together' },
 ]
-const SCREENS: Record<View, ComponentType> = { home: Home, activity: Activity, calendar: Calendar, plan: Plan, paycheck: Paycheck, year: Year, bills: Bills, goals: Goals, debts: Debts, accounts: Accounts, worth: Worth, household: Household, trips: Trips, settings: Settings }
+const SCREENS: Record<View, ComponentType> = { home: Home, activity: Activity, calendar: Calendar, plan: Plan, paycheck: Paycheck, year: Year, bills: Bills, goals: Goals, debts: Debts, emis: Emis, accounts: Accounts, worth: Worth, household: Household, trips: Trips, settings: Settings }
 
 export default function App() {
   const data = useStore((s) => s.data)
   const hydrated = useStore((s) => s.hydrated)
-  const theme = data?.settings.theme ?? 'system'
+  const theme = data?.settings.theme ?? savedTheme()
   const effects = data?.settings.effects ?? 'full'
   useEffect(() => {
     const r = document.documentElement
@@ -75,6 +78,7 @@ export default function App() {
   }, [effects])
   useEffect(() => { void initAuth(); watchAccount() }, [])
   const entry = useEntry((e) => e.screen)
+  const legal = useLegal((l) => l.doc)
   const auth = useAuth()
   const checked = useSync((x) => x.checked)
   // once signed in, the log-in screen has done its job
@@ -84,7 +88,8 @@ export default function App() {
   if (!hydrated) return loading
   // the front door: landing page, log in, or first-time setup; the app once there is data
   let screen
-  if (auth.recovering) screen = <Auth reset />
+  if (legal) screen = <Legal doc={legal} />
+  else if (auth.recovering) screen = <Auth reset />
   else if (entry === 'auth' && auth.status !== 'signed-in') screen = <Auth />
   else if (data) screen = <Shell />
   else if (auth.status === 'loading' || (auth.status === 'signed-in' && !checked)) screen = loading
@@ -134,6 +139,7 @@ function Shell() {
             <Suspense fallback={<ScreenSkeleton />}><Screen /></Suspense>
           </motion.div>
         </AnimatePresence>
+        <Footer className="mt-12" />
       </main>
       <TabBar />
       <Sheets />
@@ -149,7 +155,7 @@ function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-screen flex-col gap-5 bg-cover px-4 py-6 text-cover-ink lg:flex">
       <div className="flex items-center gap-2.5 px-2 font-display text-[24px] font-extrabold">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-cover-ink text-cover"><Wallet size={18} /></span>Tally
+        <span className="grid h-9 w-9 place-items-center rounded-xl bg-cover-ink text-cover"><Wallet size={18} /></span>SpendCop
       </div>
       <span data-tour="add" className="contents"><Button variant="primary" size="lg" onClick={() => open({ type: 'quick' })} className="!bg-cover-ink !text-cover !border-transparent">
         <Plus size={20} />Add money in or out
@@ -171,7 +177,7 @@ function Sidebar() {
       </nav>
       <AccountChip />
       <div className="flex flex-col gap-1">
-        <button type="button" onClick={() => openAsk()} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><Bot size={18} />Ask Tally</button>
+        <button type="button" onClick={() => openAsk()} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><Bot size={18} />Ask SpendCop</button>
         <button type="button" data-tour="help" onClick={() => open({ type: 'help' })} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><HelpCircle size={18} />Help & simple answers</button>
         <button type="button" onClick={() => { go('home'); setTimeout(() => useUI.getState().setTour(true), 300) }} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><Compass size={18} />Take the tour</button>
       </div>
@@ -201,8 +207,12 @@ function TopBar() {
           {month !== THIS_MONTH && <button type="button" onClick={() => setMonth(THIS_MONTH)} className="ml-1 rounded-xl px-2.5 py-1.5 text-[13px] font-semibold text-accent hover:bg-accent-soft">Today</button>}
         </div>
       )}
-      <button type="button" onClick={() => openAsk()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface px-3 font-semibold text-ink shadow-card hover:border-accent" aria-label="Ask Tally"><Bot size={18} className="text-accent" /><span className="hidden sm:inline">Ask Tally</span></button>
+      <button type="button" onClick={() => open({ type: 'export', month: n.month ? month : THIS_MONTH })} title="Export as PDF or CSV" aria-label="Export as PDF or CSV"
+        className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface px-3 font-semibold text-ink shadow-card hover:border-accent"><Download size={18} className="text-accent" /><span className="hidden sm:inline">Export</span></button>
+      <button type="button" onClick={() => openAsk()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface px-3 font-semibold text-ink shadow-card hover:border-accent" aria-label="Ask SpendCop"><Bot size={18} className="text-accent" /><span className="hidden sm:inline">Ask SpendCop</span></button>
       <ThemeToggle />
+      <button type="button" onClick={() => useUI.getState().go('settings')} aria-label="Settings" title="Settings" aria-current={view === 'settings' ? 'page' : undefined}
+        className={`grid h-10 w-10 place-items-center rounded-xl border bg-surface shadow-card hover:text-ink ${view === 'settings' ? 'border-accent text-accent' : 'border-line text-ink2'}`}><Cog size={18} /></button>
       <span data-tour="help" className="lg:hidden"><Button variant="ghost" onClick={() => open({ type: 'help' })} ariaLabel="Help"><HelpCircle size={18} /><span className="hidden sm:inline">Help</span></Button></span>
     </header>
   )
@@ -278,8 +288,11 @@ function ScreenSkeleton() {
   )
 }
 
+/** The look before any data is loaded: what this browser used last, light by default. */
+const savedTheme = (): 'system' | 'light' | 'dark' => { try { const t = localStorage.getItem('tally.theme'); return t === 'dark' || t === 'system' ? t : 'light' } catch { return 'light' } }
+
 function ThemeToggle() {
-  const theme = useStore((s) => s.data?.settings.theme ?? 'system')
+  const theme = useStore((s) => s.data?.settings.theme ?? 'light')
   const dark = theme === 'dark' || (theme === 'system' && typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches)
   return (
     <motion.button type="button" whileTap={{ scale: 0.9, rotate: -20 }} onClick={() => update((d) => { d.settings.theme = dark ? 'light' : 'dark' })}
@@ -339,7 +352,7 @@ function SyncConflict() {
   return (
     <div className="fixed inset-0 z-[80] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="conflict-title">
       <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} className="w-full max-w-lg rounded-[24px] border border-line bg-surface p-6 shadow-pop">
-        <h2 id="conflict-title" className="text-[21px] font-extrabold">Which copy should Tally keep?</h2>
+        <h2 id="conflict-title" className="text-[21px] font-extrabold">Which copy should SpendCop keep?</h2>
         <p className="mt-1.5 text-[14.5px] text-ink2">Your account has changes from another device, and this device has changes too. Pick the one to keep. The other is set aside on this device, and you can bring it back from Settings.</p>
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <button type="button" onClick={() => resolveConflict('device')} className="rounded-2xl border border-line p-4 text-left hover:border-accent">

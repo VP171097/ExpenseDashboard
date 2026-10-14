@@ -1,16 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight, Check, Eye, Gauge, PiggyBank, Sparkles, Wallet } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Eye, Gauge, PiggyBank, Plus, Sparkles, Wallet } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Button, CatIcon, celebrate, Field, Segmented, Slider } from '../components/ui'
 import { CoinScene3D } from '../components/three'
-import { balances, uid, worthNow } from '../lib/calc'
-import { addDays, addMonthsDate, iso, NOW, pad, parse, THIS_MONTH, TODAY } from '../lib/dates'
+import { uid, worthNow } from '../lib/calc'
+import { addDays, addMonths, addMonthsDate, daysIn, fmtDate, iso, monthEnd, monthName, NOW, nextPayday, pad, THIS_MONTH, TODAY, WEEKDAYS } from '../lib/dates'
 import { CURRENCIES, money0, setCurrency } from '../lib/money'
 import { baseCategories, emptyState, sampleState, seedHistory } from '../lib/sample'
 import { replaceData } from '../lib/store'
 import { useEntry } from '../lib/entry'
+import Footer from '../components/Footer'
 import { useAuth } from '../lib/cloud/auth'
-import type { Freq, State } from '../lib/types'
+import type { Payday, State } from '../lib/types'
 
 const BILLS: { key: string; name: string; cat: string; hint: number }[] = [
   { key: 'rent', name: 'Rent or mortgage', cat: 'housing', hint: 1200 },
@@ -45,7 +46,14 @@ export default function Onboarding() {
   const [pay, setPay] = useState('')
   const [cycle, setCycle] = useState<'monthly' | 'biweekly' | 'weekly'>('monthly')
   const [payday, setPayday] = useState(iso(addDays(NOW, 7)))
+  const [rule, setRule] = useState<Payday['rule']>('last')
+  const [payDom, setPayDom] = useState('1')
+  const [shift, setShift] = useState<Payday['shift']>('before')
+  const [off, setOff] = useState<number[]>([0, 6])
   const [bank, setBank] = useState('')
+  const [cash, setCash] = useState('')
+  const [saved, setSaved] = useState('')
+  const [dues, setDues] = useState<{ name: string; amount: string; date: string }[]>([])
   const [bills, setBills] = useState<Record<string, { on: boolean; amount: string; day: string }>>({})
   const [goal, setGoal] = useState<'rainy' | 'holiday' | 'big' | 'none'>('rainy')
   const [goalAmt, setGoalAmt] = useState('')
@@ -53,12 +61,17 @@ export default function Onboarding() {
   setCurrency(currency)
 
   const monthlyPay = (parseFloat(pay) || 0) * PER[cycle]
+  const dueTotal = dues.reduce((a, x) => a + (parseFloat(x.amount) > 0 && x.date >= TODAY ? parseFloat(x.amount) : 0), 0)
   const billTotal = Object.values(bills).filter((b) => b.on).reduce((a, b) => a + (parseFloat(b.amount) || 0), 0)
   const goalTarget = parseFloat(goalAmt) || (goal === 'rainy' ? Math.round(billTotal * 3 || monthlyPay * 2) : 0)
   const saveMonthly = goal === 'none' ? Math.round(monthlyPay * 0.1) : Math.min(Math.round(goalTarget / goalMonths), Math.round(monthlyPay * 0.25))
   const everyday = Math.max(0, monthlyPay - billTotal - saveMonthly)
   const buffer = Math.round(everyday * 0.1)
 
+  const pd: Payday = { rule, day: Math.max(1, Math.min(31, parseInt(payDom) || 1)), shift }
+  // the first salary SpendCop counts: the next one from today
+  const firstPay = cycle === 'monthly' ? nextPayday(pd, off) : payday
+  const monthLeft = Math.max(0, daysIn(THIS_MONTH) - NOW.getDate())
   const next = () => { setDir(1); setStep((x) => x + 1) }
   const back = () => { setDir(-1); setStep((x) => x - 1) }
 
@@ -68,47 +81,56 @@ export default function Onboarding() {
     const s: State = emptyState(currency)
     s.settings.name = name.trim()
     s.settings.payCycle = cycle
-    s.settings.payAnchor = payday
+    s.settings.payAnchor = firstPay
+    s.settings.payday = pd
+    s.settings.offDays = off
+    // a fresh start: nothing before today is added
+    s.settings.since = TODAY
     s.people = [name.trim() || 'Me', ...(partner.trim() ? [partner.trim()] : [])]
     s.categories = baseCategories().map((c) => ({ ...c, plan: 0 }))
     const plan = (id: string, v: number) => { const c = s.categories.find((x) => x.id === id); if (c) c.plan = Math.round((c.plan + v) / 5) * 5 }
-    // pay: start at the last payday so this month's pay is counted
-    if (monthlyPay > 0) {
-      const next = parse(payday)
-      const freq: Freq = cycle
-      let last = cycle === 'monthly' ? addMonthsDate(next, -1) : addDays(next, cycle === 'weekly' ? -7 : -14)
-      if (iso(last) > TODAY) last = next
-      s.rules.push({ id: uid(), name: 'My pay', type: 'income', cat: 'salary', amount: parseFloat(pay), freq, start: iso(last), account: 'chk', person: s.people[0], paidThrough: TODAY })
-    }
+    // pay starts with the next salary
+    if (monthlyPay > 0) s.rules.push({ id: uid(), name: 'My pay', type: 'income', cat: 'salary', amount: parseFloat(pay), freq: cycle, start: firstPay, account: 'chk', person: s.people[0], payday: cycle === 'monthly' })
     for (const b of BILLS) {
       const v = bills[b.key]
       if (!v?.on || !(parseFloat(v.amount) > 0)) continue
       const day = Math.min(28, Math.max(1, parseInt(v.day) || 1))
-      s.rules.push({ id: uid(), name: b.name, type: 'expense', cat: b.cat, amount: parseFloat(v.amount), freq: 'monthly', start: `${THIS_MONTH}-${pad(day)}`, account: 'chk', person: s.people[0], paidThrough: TODAY })
+      // bills already paid this month start next month
+      const start = `${THIS_MONTH}-${pad(day)}` >= TODAY ? `${THIS_MONTH}-${pad(day)}` : `${addMonths(THIS_MONTH, 1)}-${pad(day)}`
+      s.rules.push({ id: uid(), name: b.name, type: 'expense', cat: b.cat, amount: parseFloat(v.amount), freq: 'monthly', start, account: 'chk', person: s.people[0] })
       plan(b.cat, parseFloat(v.amount))
     }
     const spread = everyday - buffer
     for (const [id, share] of EVERYDAY) plan(id, spread * share)
-    if (saveMonthly > 0) {
-      const day = Math.min(28, parse(payday).getDate() + 1)
-      s.rules.push({ id: uid(), name: 'Pay myself first', type: 'savings', cat: 'savings', amount: saveMonthly, freq: 'monthly', start: `${THIS_MONTH}-${pad(day)}`, account: 'chk', to: 'sav', person: s.people[0], paidThrough: TODAY })
+    // other payments still due this month, entered one by one
+    for (const x of dues) {
+      const a = parseFloat(x.amount)
+      if (!(a > 0) || !x.date || x.date < TODAY) continue
+      s.rules.push({ id: uid(), name: x.name.trim() || 'Payment', type: 'expense', cat: 'other', amount: a, freq: 'monthly', start: x.date, end: x.date, account: 'chk', person: s.people[0] })
     }
+    // saving happens on payday, from the first salary on
+    if (saveMonthly > 0 && monthlyPay > 0)
+      s.rules.push({ id: uid(), name: 'Pay myself first', type: 'savings', cat: 'savings', amount: saveMonthly, freq: 'monthly', start: firstPay, account: 'chk', to: 'sav', person: s.people[0], payday: cycle === 'monthly' })
     if (goal !== 'none' && goalTarget > 0)
       s.goals.push({ id: uid(), name: goal === 'rainy' ? 'Rainy day fund' : goal === 'holiday' ? 'Holiday' : 'Something big', target: goalTarget, saved: 0, due: iso(addMonthsDate(NOW, goalMonths)) })
-    const bankNow = parseFloat(bank)
-    if (isFinite(bankNow)) { const b = balances(s).chk || 0; s.accounts[0].start = Math.round((bankNow - b) * 100) / 100 }
+    // where you are starting from today
+    const num = (v: string) => Math.round((parseFloat(v) || 0) * 100) / 100
+    s.accounts[0].start = num(bank)
+    s.accounts[1].start = num(saved)
+    if (num(cash)) s.accounts.push({ id: 'cash', name: 'Cash', type: 'cash', start: num(cash) })
     celebrate(null, true)
     replaceData(s)
   }
 
-  const canNext = [true, true, monthlyPay > 0, true, true, true][step]
-  const steps = ['Welcome', 'About you', 'Money in', 'Bills', 'Saving', 'Your plan']
+  const canNext = [true, true, monthlyPay > 0, bank.trim() !== '' && isFinite(parseFloat(bank)), true, true, true, true][step]
+  const steps = ['Welcome', 'About you', 'Money in', 'Starting point', 'Bills', 'Due this month', 'Saving', 'Your plan']
+  const LAST = steps.length - 1
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-8" style={{ background: 'radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--accent) 16%, var(--bg)), var(--bg))' }}>
       {step === 0 && !signedIn && <button type="button" onClick={() => useEntry.getState().go('landing')} className="mb-4 inline-flex items-center gap-1.5 self-center text-[14px] font-semibold text-ink2 hover:text-ink"><ArrowLeft size={16} />Back to the home page</button>}
       <div className="mb-6 flex items-center gap-2.5 font-display text-[26px] font-extrabold">
-        <span className="grid h-10 w-10 place-items-center rounded-xl bg-cover text-cover-ink"><Wallet size={20} /></span>Tally
+        <span className="grid h-10 w-10 place-items-center rounded-xl bg-cover text-cover-ink"><Wallet size={20} /></span>SpendCop
       </div>
       <div className="card relative w-full max-w-xl overflow-hidden p-6 sm:p-9">
         {step > 0 && (
@@ -124,7 +146,7 @@ export default function Onboarding() {
               <div className="flex flex-col gap-5">
                 <CoinScene3D className="-mx-6 -mt-4 h-44 sm:-mx-9 sm:h-52" fallback={<WelcomeArt />} />
                 <h1 className="text-[34px] font-extrabold leading-tight sm:text-[40px]">Money, made simple.</h1>
-                <p className="text-[17px] text-ink2">Tally shows you what's safe to spend, keeps track of your bills and helps you save. No money knowledge needed.</p>
+                <p className="text-[17px] text-ink2">SpendCop shows you what's safe to spend, keeps track of your bills and helps you save. No money knowledge needed.</p>
                 <ul className="flex flex-col gap-3">
                   {[[Eye, 'See exactly what you can spend today'], [Gauge, 'Know if you are on track at a glance'], [PiggyBank, 'Save up for the things you care about']].map(([I, t], i) => {
                     const Icon = I as typeof Eye
@@ -154,15 +176,42 @@ export default function Onboarding() {
                 <p className="-mt-2 text-ink2">Use the amount that actually lands in your bank account, after tax.</p>
                 <Field label="Each payment"><input className="field font-display text-[28px] font-bold" autoFocus type="number" min="0" step="any" inputMode="decimal" value={pay} onChange={(e) => setPay(e.target.value)} placeholder="0" /></Field>
                 <div><p className="mb-2 text-[13.5px] font-semibold text-ink2">How often?</p><Segmented label="How often" value={cycle} onChange={setCycle} options={[['monthly', 'Every month'], ['biweekly', 'Every 2 weeks'], ['weekly', 'Every week']]} /></div>
-                <Field label="When is your next payday?"><input className="field" type="date" value={payday} onChange={(e) => setPayday(e.target.value)} /></Field>
-                <Field label="Money in your main bank account today (optional)" hint="Helps Tally show the right balance."><input className="field" type="number" step="any" inputMode="decimal" value={bank} onChange={(e) => setBank(e.target.value)} /></Field>
+                {cycle === 'monthly' ? (
+                  <>
+                    <div><p className="mb-2 text-[13.5px] font-semibold text-ink2">When does it come in?</p>
+                      <Segmented label="Payday" value={rule} onChange={setRule} options={[['last', 'Last working day'], ['first', 'First working day'], ['date', 'A specific date']]} /></div>
+                    {rule === 'date' && (
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <Field label="Day of the month"><input className="field" type="number" min={1} max={31} value={payDom} onChange={(e) => setPayDom(e.target.value)} /></Field>
+                        <Field label="If that's a day off"><select className="field" value={shift} onChange={(e) => setShift(e.target.value as Payday['shift'])}><option value="before">Paid the working day before</option><option value="after">Paid the working day after</option></select></Field>
+                      </div>
+                    )}
+                    <div><p className="mb-2 text-[13.5px] font-semibold text-ink2">Which days don't you work?</p>
+                      <div className="flex flex-wrap gap-1.5" role="group" aria-label="Days off">
+                        {[...WEEKDAYS.slice(1), WEEKDAYS[0]].map((w) => <button key={w.d} type="button" aria-pressed={off.includes(w.d)} title={w.long} onClick={() => setOff((o) => (o.includes(w.d) ? o.filter((x) => x !== w.d) : [...o, w.d]))} className={`min-w-[48px] rounded-xl border-2 px-2.5 py-1.5 text-[13px] font-semibold ${off.includes(w.d) ? 'border-accent bg-accent-soft' : 'border-line text-ink2'}`}>{w.short}</button>)}
+                      </div></div>
+                  </>
+                ) : <Field label="When is your next payday?"><input className="field" type="date" min={TODAY} value={payday} onChange={(e) => setPayday(e.target.value)} /></Field>}
+                {firstPay && <p className="rounded-2xl bg-accent-soft p-3 text-[14.5px]">Your next salary: <b>{fmtDate(firstPay, { weekday: 'long', day: 'numeric', month: 'long' })}</b>. SpendCop counts your pay from then on.</p>}
                 {monthlyPay > 0 && cycle !== 'monthly' && <p className="rounded-2xl bg-accent-soft p-3 text-[14.5px]">That's about <b>{money0(monthlyPay)}</b> a month.</p>}
               </div>
             )}
             {step === 3 && (
+              <div className="flex flex-col gap-5">
+                <h2 className="text-[28px] font-extrabold">Where are you starting from?</h2>
+                <p className="-mt-2 text-ink2">SpendCop starts from <b>today</b>. Nothing from before today is added; your balances today are your starting point.</p>
+                <Field label="Money in your main bank account today"><input className="field font-display text-[26px] font-bold" autoFocus type="number" step="any" inputMode="decimal" value={bank} onChange={(e) => setBank(e.target.value)} placeholder="0" /></Field>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Cash on you (optional)"><input className="field" type="number" step="any" inputMode="decimal" value={cash} onChange={(e) => setCash(e.target.value)} /></Field>
+                  <Field label="In savings (optional)"><input className="field" type="number" step="any" inputMode="decimal" value={saved} onChange={(e) => setSaved(e.target.value)} /></Field>
+                </div>
+                <p className="text-[13px] text-muted">If your account is overdrawn, enter a minus number, like -120.</p>
+              </div>
+            )}
+            {step === 4 && (
               <div className="flex flex-col gap-4">
                 <h2 className="text-[28px] font-extrabold">Which bills do you pay?</h2>
-                <p className="-mt-2 text-ink2">Tap the ones you have. Rough amounts are fine; you can change them later.</p>
+                <p className="-mt-2 text-ink2">Tap the ones you have. Rough amounts are fine; you can change them later. Bills already paid this month start next month.</p>
                 <div className="flex flex-col gap-2">
                   {BILLS.map((b) => {
                     const v = bills[b.key] ?? { on: false, amount: '', day: '1' }
@@ -191,7 +240,26 @@ export default function Onboarding() {
                 </div>
               </div>
             )}
-            {step === 4 && (
+            {step === 5 && (
+              <div className="flex flex-col gap-4">
+                <h2 className="text-[28px] font-extrabold">Anything else due this month?</h2>
+                <p className="-mt-2 text-ink2">Payments you still have to make between today and the end of {monthName(THIS_MONTH)}{monthLeft ? '' : ' (today is the last day)'}, like a fee, a repair or a loan instalment. Skip this if there's nothing.</p>
+                {dues.map((x, i) => {
+                  const setX = (p: Partial<typeof x>) => setDues((d) => d.map((y, j) => (j === i ? { ...y, ...p } : y)))
+                  return (
+                    <div key={i} className="grid grid-cols-[1fr_110px] gap-2 rounded-2xl border border-line p-3 sm:grid-cols-[1fr_120px_150px_auto]">
+                      <input className="field col-span-2 sm:col-span-1" value={x.name} onChange={(e) => setX({ name: e.target.value })} placeholder="What for?" aria-label="What for" />
+                      <input className="field" type="number" min="0" step="any" inputMode="decimal" value={x.amount} onChange={(e) => setX({ amount: e.target.value })} placeholder="Amount" aria-label="Amount" />
+                      <input className="field" type="date" min={TODAY} max={monthEnd(THIS_MONTH)} value={x.date} onChange={(e) => setX({ date: e.target.value })} aria-label="Due on" />
+                      <button type="button" className="col-span-2 justify-self-end text-[13px] font-semibold text-bad sm:col-span-1" onClick={() => setDues((d) => d.filter((_, j) => j !== i))}>Remove</button>
+                    </div>
+                  )
+                })}
+                <Button onClick={() => setDues((d) => [...d, { name: '', amount: '', date: TODAY }])}><Plus size={16} />Add a payment</Button>
+                <p className="text-[13px] text-muted">Loans and card EMIs can be added on the Loans & EMIs page afterwards; SpendCop works out each instalment for you.</p>
+              </div>
+            )}
+            {step === 6 && (
               <div className="flex flex-col gap-5">
                 <h2 className="text-[28px] font-extrabold">Saving for something?</h2>
                 <p className="-mt-2 text-ink2">Saving a little each month adds up. Most people start with a rainy day fund for surprises.</p>
@@ -211,12 +279,13 @@ export default function Onboarding() {
                     </div>
                   </>
                 )}
-                {monthlyPay > 0 && <p className="rounded-2xl bg-accent-soft p-3.5 text-[14.5px]">Tally will put aside <b>{money0(saveMonthly)}</b> each month for you.</p>}
+                {monthlyPay > 0 && <p className="rounded-2xl bg-accent-soft p-3.5 text-[14.5px]">SpendCop will put aside <b>{money0(saveMonthly)}</b> each month for you.</p>}
               </div>
             )}
-            {step === 5 && (
+            {step === 7 && (
               <div className="flex flex-col gap-5">
                 <h2 className="text-[28px] font-extrabold">Here's your plan</h2>
+                <p className="-mt-2 rounded-2xl bg-surface2 p-3 text-[14px] text-ink2">Until your next salary on <b className="text-ink">{fmtDate(firstPay || TODAY, { day: 'numeric', month: 'long' })}</b>, SpendCop works from the <b className="text-ink">{money0((parseFloat(bank) || 0) + (parseFloat(cash) || 0))}</b> you have today{dueTotal ? <>, minus <b className="text-ink">{money0(dueTotal)}</b> still to pay</> : null}. After that, every month runs like this:</p>
                 <p className="-mt-2 text-ink2">Every month, your {money0(monthlyPay)} is split like this. You can fine-tune it any time.</p>
                 <PlanPreview rows={[['Bills', billTotal, 'var(--s1)'], ['Everyday spending', everyday - buffer, 'var(--s2)'], ['Put aside', saveMonthly, 'var(--s3)'], ['Spare, just in case', buffer, 'var(--s4)']]} total={monthlyPay} />
                 {billTotal + saveMonthly > monthlyPay && <p className="rounded-2xl bg-bad-soft p-3 text-[14px] text-bad">Your bills and savings are more than you earn. You can still continue and adjust things on the Plan page.</p>}
@@ -224,7 +293,7 @@ export default function Onboarding() {
             )}
           </motion.div>
         </AnimatePresence>
-        {step >= 2 && step <= 4 && monthlyPay > 0 && (
+        {step >= 2 && step <= 6 && step !== 3 && monthlyPay > 0 && (
           <motion.div layout className="mt-6 rounded-2xl border border-line bg-surface2 p-4" aria-live="polite">
             <p className="mb-2 text-[12.5px] font-bold uppercase tracking-[.08em] text-muted">Your monthly plan so far</p>
             <div className="flex h-3 gap-[3px] overflow-hidden rounded-full">
@@ -241,11 +310,12 @@ export default function Onboarding() {
         {step > 0 && (
           <div className="mt-8 flex items-center justify-between gap-3">
             <Button variant="ghost" onClick={back}><ArrowLeft size={16} />Back</Button>
-            {step < 5 ? <Button variant="primary" size="lg" onClick={next} disabled={!canNext}>{step === 3 && !Object.values(bills).some((b) => b.on) ? 'Skip for now' : 'Continue'} <ArrowRight size={18} /></Button>
+            {step < LAST ? <Button variant="primary" size="lg" onClick={next} disabled={!canNext}>{(step === 4 && !Object.values(bills).some((b) => b.on)) || (step === 5 && !dues.length) ? 'Skip for now' : 'Continue'} <ArrowRight size={18} /></Button>
               : <Button variant="primary" size="lg" onClick={build}>Open my dashboard <ArrowRight size={18} /></Button>}
           </div>
         )}
       </div>
+      <Footer className="mt-8 w-full max-w-xl" />
     </div>
   )
 }

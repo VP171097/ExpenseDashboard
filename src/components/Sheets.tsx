@@ -1,16 +1,17 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  ArrowLeft, Banknote, BarChart3, CalendarClock, CalendarDays, ChevronDown, Compass, Plane, Copy, Delete, Download, FileSpreadsheet, Goal, HelpCircle, Landmark, Repeat, Scale, Settings as Cog, Trash2, Upload, Users, Wallet,
+  ArrowLeft, Banknote, BarChart3, CalendarClock, CalendarDays, ChevronDown, Compass, Plane, Copy, Delete, Download, FileSpreadsheet, FileText, Goal, HelpCircle, Landmark, Repeat, Scale, Settings as Cog, Trash2, Upload, Users, Wallet,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { catOf, cents, findDuplicate, FREQ, isPaid, monthsUntil, ruleKey, tripDays, uid } from '../lib/calc'
+import { catOf, cents, findDuplicate, FREQ, isPaid, itemsIn, monthsUntil, ruleKey, tripDays, uid } from '../lib/calc'
 import { saveFile, workbook } from '../lib/files'
-import { addDays, addMonthsDate, iso, NOW, THIS_MONTH, TODAY } from '../lib/dates'
+import { emiRule, emiStatus } from '../lib/emi'
+import { addDays, addMonthsDate, fmtDate, iso, monthEnd, monthName, NOW, THIS_MONTH, TODAY } from '../lib/dates'
 import { balances } from '../lib/calc'
-import { checkBackup, commitImport, prepareImport, toCsv, type ImportPlan } from '../lib/io'
-import { money, symbol } from '../lib/money'
+import { checkBackup, commitImport, prepareImport, toCsv, toCsvRange, type ImportPlan } from '../lib/io'
+import { money, money2, symbol } from '../lib/money'
 import { replaceData, toast, update, useData, useStore, useUI, type SheetSpec, type View } from '../lib/store'
-import type { Category, Freq, Kind, State } from '../lib/types'
+import type { Category, Emi, Freq, Kind, State } from '../lib/types'
 import { Button, CatIcon, celebrate, Field, ICONS, Segmented, Sheet } from './ui'
 
 const KIND_WORD: Record<Kind, string> = { expense: 'Money out', income: 'Money in', savings: 'Put aside' }
@@ -27,14 +28,15 @@ export default function Sheets() {
   const titles: Record<SheetSpec['type'], string> = {
     quick: spec?.type === 'quick' && spec.edit ? 'Edit entry' : 'Add money in or out', bill: spec?.type === 'bill' && spec.id ? 'Edit regular item' : 'New regular item',
     goal: spec?.type === 'goal' && spec.id ? 'Edit goal' : 'New savings goal', trip: spec?.type === 'trip' && spec.id ? 'Edit trip' : 'New trip', debt: spec?.type === 'debt' && spec.id ? 'Edit loan or card' : 'Add a loan or card',
+    emi: spec?.type === 'emi' && spec.id ? 'Edit loan or EMI' : spec?.type === 'emi' && spec.kind === 'card' ? 'Add a card EMI' : 'Add a loan',
     holding: spec?.type === 'holding' && spec.id ? 'Edit' : spec?.type === 'holding' && spec.kind === 'owe' ? 'Add something you owe' : 'Add something you own',
     account: spec?.type === 'account' && spec.id ? 'Edit account' : 'Add account', category: spec?.type === 'category' && spec.id ? 'Edit category' : 'New category',
-    help: 'Help & simple answers', more: 'Everything in Tally', csv: 'Import from your bank', backup: 'Back up & export', confirm: spec?.type === 'confirm' ? spec.title : '',
+    help: 'Help & simple answers', more: 'Everything in SpendCop', csv: 'Import from your bank', backup: 'Back up & export', export: 'Export', confirm: spec?.type === 'confirm' ? spec.title : '',
     occ: 'This payment', transfer: spec?.type === 'transfer' && spec.id ? 'Edit transfer' : 'Move money between accounts',
   }
   return (
     <>
-      {(['quick', 'bill', 'goal', 'trip', 'debt', 'holding', 'account', 'category', 'help', 'more', 'csv', 'backup', 'confirm', 'occ', 'transfer'] as const).map((t) => (
+      {(['quick', 'bill', 'goal', 'trip', 'debt', 'emi', 'holding', 'account', 'category', 'help', 'more', 'csv', 'backup', 'export', 'confirm', 'occ', 'transfer'] as const).map((t) => (
         <Sheet key={t} open={is(t)} onClose={close} title={titles[t]} wide={t === 'help' || t === 'backup'}>
           {spec?.type === t && <Body key={key} spec={spec} />}
         </Sheet>
@@ -50,6 +52,7 @@ function Body({ spec }: { spec: SheetSpec }) {
     case 'goal': return <GoalForm id={spec.id} />
     case 'trip': return <TripForm id={spec.id} />
     case 'debt': return <DebtForm id={spec.id} />
+    case 'emi': return <EmiForm id={spec.id} kind={spec.kind} />
     case 'holding': return <HoldingForm id={spec.id} kind={spec.kind} />
     case 'account': return <AccountForm id={spec.id} />
     case 'category': return <CategoryForm id={spec.id} />
@@ -57,6 +60,7 @@ function Body({ spec }: { spec: SheetSpec }) {
     case 'more': return <More />
     case 'csv': return <CsvImport />
     case 'backup': return <Backup />
+    case 'export': return <Export month={spec.month} />
     case 'confirm': return <Confirm spec={spec} />
     case 'occ': return <OccForm ruleId={spec.ruleId} date={spec.date} />
     case 'transfer': return <TransferForm id={spec.id} from={spec.from} to={spec.to} />
@@ -431,6 +435,100 @@ function DebtForm({ id }: { id?: string }) {
   )
 }
 
+/* ---------------- a loan or card EMI: what you borrowed, the rate and how long ---------------- */
+function EmiForm({ id, kind }: { id?: string; kind?: 'loan' | 'card' }) {
+  const s = useData()
+  const x = s.emis.find((e) => e.id === id)
+  const [k, setK] = useState<'loan' | 'card'>(x?.kind ?? kind ?? 'loan')
+  const [name, setName] = useState(x?.name ?? '')
+  const [lender, setLender] = useState(x?.lender ?? '')
+  const [principal, setPrincipal] = useState(x ? String(x.principal) : '')
+  const [rate, setRate] = useState(x ? String(x.rate) : '')
+  const [tenure, setTenure] = useState(x ? String(x.months % 12 === 0 && x.months >= 12 ? x.months / 12 : x.months) : '')
+  const [unit, setUnit] = useState<'months' | 'years'>(x && x.months % 12 === 0 && x.months >= 12 ? 'years' : k === 'card' ? 'months' : 'years')
+  const [started, setStarted] = useState<'yes' | 'no'>(x ? (x.first < TODAY ? 'yes' : 'no') : 'no')
+  const [first, setFirst] = useState(x?.first ?? iso(addMonthsDate(NOW, 1)))
+  const [own, setOwn] = useState(x?.emi ? String(x.emi) : '')
+  const [account, setAccount] = useState(x?.account ?? s.accounts.find((a) => a.type === 'everyday')?.id ?? s.accounts[0].id)
+  const [err, setErr] = useState('')
+  const months = Math.round((parseFloat(tenure) || 0) * (unit === 'years' ? 12 : 1))
+  const draft: Emi = { id: x?.id ?? 'new', name: name.trim(), kind: k, lender: lender.trim() || undefined, principal: parseFloat(principal) || 0, rate: parseFloat(rate) || 0, months, first, emi: parseFloat(own) > 0 ? parseFloat(own) : undefined, account, ruleId: x?.ruleId }
+  const ok = draft.principal > 0 && months > 0 && months <= 600 && /^\d{4}-\d{2}-\d{2}$/.test(first)
+  const st = ok ? emiStatus(draft) : null
+  const save = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!draft.name) return setErr(k === 'card' ? 'What did you buy? For example "Phone".' : 'Give it a name, like "Car loan".')
+    if (!(draft.principal > 0)) return setErr('How much did you borrow?')
+    if (!(draft.rate >= 0 && draft.rate <= 60)) return setErr('Enter the yearly interest rate, between 0 and 60%.')
+    if (!(months > 0 && months <= 600)) return setErr('How long is it for? Between 1 month and 50 years.')
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(first)) return setErr('Pick the date of the first EMI.')
+    if (started === 'yes' && first >= TODAY) return setErr('You said some EMIs are already paid, so the first one was before today.')
+    if (started === 'no' && first < TODAY) return setErr('That date is in the past. If you have already paid some EMIs, choose "Yes" above.')
+    const cat = s.categories.find((c) => c.id === 'debt')?.id ?? s.categories.find((c) => c.kind === 'expense')!.id
+    const prev = update((d) => {
+      const old = d.rules.find((r) => r.id === x?.ruleId)
+      // instalments before you started tracking this one aren't added as past spending
+      const rule = emiRule(draft, old?.start ?? TODAY, old, cat)
+      const e2: Emi = { ...draft, id: x?.id ?? uid(), ruleId: rule?.id ?? old?.id }
+      // a finished loan keeps the EMIs already on record
+      if (rule) { d.rules = d.rules.filter((r) => r.id !== rule.id); d.rules.push(rule) }
+      if (x) d.emis[d.emis.findIndex((y) => y.id === x.id)] = e2
+      else d.emis.push(e2)
+    })
+    done(x ? 'Saved' : `${draft.name} added. Its EMIs are on your calendar.`, prev)
+  }
+  const remove = () => {
+    const prev = update((d) => {
+      d.emis = d.emis.filter((y) => y.id !== x!.id)
+      // keep EMIs already on record; stop future ones
+      const r = d.rules.find((y) => y.id === x!.ruleId)
+      if (r) { if (r.start >= TODAY) d.rules = d.rules.filter((y) => y !== r); else r.end = iso(addDays(NOW, -1)) }
+    })
+    done('Removed. EMIs already on record are kept.', prev)
+  }
+  return (
+    <form onSubmit={save} className="flex flex-col gap-4">
+      {!x && <Segmented label="Type" value={k} onChange={(v) => { setK(v); if (!tenure) setUnit(v === 'card' ? 'months' : 'years') }} options={[['loan', 'Loan'], ['card', 'Card EMI']]} />}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={k === 'card' ? 'What did you buy?' : 'Name'}><input className="field" value={name} onChange={(e) => setName(e.target.value)} placeholder={k === 'card' ? 'e.g. Phone' : 'e.g. Car loan'} /></Field>
+        <Field label={k === 'card' ? 'Which card? (optional)' : 'Bank or lender (optional)'}><input className="field" value={lender} onChange={(e) => setLender(e.target.value)} /></Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-3">
+        <Field label={k === 'card' ? 'Amount converted to EMI' : 'Amount taken'}><input className="field" type="number" min="0" step="any" inputMode="decimal" value={principal} onChange={(e) => setPrincipal(e.target.value)} /></Field>
+        <Field label="Interest per year (%)" hint={k === 'card' ? 'Use 0 for a no-cost EMI' : undefined}><input className="field" type="number" min="0" max="60" step="0.01" inputMode="decimal" value={rate} onChange={(e) => setRate(e.target.value)} /></Field>
+        <Field label="Tenure"><div className="flex gap-2"><input className="field" type="number" min="1" step="1" inputMode="numeric" value={tenure} onChange={(e) => setTenure(e.target.value)} aria-label="Tenure" /><select className="field !w-auto" value={unit} onChange={(e) => setUnit(e.target.value as 'months' | 'years')} aria-label="Tenure in"><option value="months">months</option><option value="years">years</option></select></div></Field>
+      </div>
+      <div>
+        <p className="mb-2 text-[13.5px] font-semibold text-ink2">Have you already paid some EMIs?</p>
+        <Segmented label="Already paid some EMIs" value={started} onChange={setStarted} options={[['no', 'No, not yet'], ['yes', 'Yes']]} />
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label={started === 'yes' ? 'When was the first EMI paid?' : 'When is the first EMI due?'} hint="EMIs then fall on the same date each month"><input className="field" type="date" value={first} max={started === 'yes' ? iso(addDays(NOW, -1)) : undefined} min={started === 'no' ? TODAY : undefined} onChange={(e) => setFirst(e.target.value)} /></Field>
+        <Field label="Paid from"><select className="field" value={account} onChange={(e) => setAccount(e.target.value)}>{s.accounts.map((a) => <option key={a.id} value={a.id}>{a.name}</option>)}</select></Field>
+      </div>
+      {st && (
+        <div className="rounded-2xl bg-accent-soft p-4 text-[14px]" aria-live="polite">
+          <p>Your EMI: <b className="font-display text-[20px]">{money2(st.emi)}</b> a month for {months} months</p>
+          <ul className="mt-2 grid gap-1 text-[13.5px] sm:grid-cols-2">
+            <li>Total interest: <b>{money(st.interestTotal)}</b></li>
+            <li>Total you'll pay: <b>{money(st.totalPayable)}</b></li>
+            <li>EMIs paid so far: <b>{st.done} of {months}</b></li>
+            <li>{st.thisMonth ? <>This month: <b>EMI {st.thisMonth.n}</b> on {fmtDate(st.thisMonth.date)}</> : st.next ? <>Next: <b>EMI {st.next.n}</b> on {fmtDate(st.next.date)}</> : <>All EMIs paid</>}</li>
+            <li>Last EMI: <b>{fmtDate(st.last, { day: 'numeric', month: 'long', year: 'numeric' })}</b></li>
+            <li>Still owed today: <b>{money(st.owed)}</b></li>
+          </ul>
+        </div>
+      )}
+      <Field label="EMI on your statement (optional)" hint="If your lender's EMI is slightly different, enter it here and SpendCop will use it."><input className="field" type="number" min="0" step="any" inputMode="decimal" value={own} onChange={(e) => setOwn(e.target.value)} /></Field>
+      <Err msg={err} />
+      <Foot>
+        {x && <Button variant="danger" className="mr-auto" onClick={remove}><Trash2 size={16} />Remove</Button>}
+        <Button type="submit" variant="primary">{x ? 'Save' : 'Add'}</Button>
+      </Foot>
+    </form>
+  )
+}
+
 function HoldingForm({ id, kind }: { id?: string; kind?: 'own' | 'owe' }) {
   const s = useData()
   const h = s.holdings.find((x) => x.id === id)
@@ -547,11 +645,11 @@ function CategoryForm({ id }: { id?: string }) {
 
 /* ---------------- help ---------------- */
 const FAQ: [string, string][] = [
-  ['What is "Safe to spend"?', "It's the money that's really free this month. Tally takes everything coming in, then subtracts what you've spent, what you've put aside and the bills that still have to go out. If you only spend from this number, your bills are always covered."],
+  ['What is "Safe to spend"?', "It's the money that's really free this month. SpendCop takes everything coming in, then subtracts what you've spent, what you've put aside and the bills that still have to go out. If you only spend from this number, your bills are always covered."],
   ['How do I track a trip or holiday?', 'Open Trips and create one with its dates and, if you like, a budget. Then, whenever you add an expense, tap the trip under "Part of a trip?". The expense still shows in Activity, your month and your plan as normal, with the trip\'s name next to it, and the trip page adds everything up: spent, left, per day, by category and who paid.'],
   ['How do I add something I bought?', 'Tap the big + button. Pick what it was (like Groceries), type the amount, and tap Add. That\'s it. You can press N on a keyboard too.'],
   ['What are regular items?', 'Things that repeat, like rent, your phone bill, subscriptions and your pay. Add them once under Bills and they appear every month by themselves. When one is paid, tap its tick box.'],
-  ['What is a plan (budget)?', "A plan is how much you'd like to spend on each thing in a month. Tally shows how much is left in each 'pot' so you can slow down before you run out. Not sure what to plan? Tap 'Use this' to copy what you usually spend."],
+  ['What is a plan (budget)?', "A plan is how much you'd like to spend on each thing in a month. SpendCop shows how much is left in each 'pot' so you can slow down before you run out. Not sure what to plan? Tap 'Use this' to copy what you usually spend."],
   ['Essentials, extras and future you?', 'Essentials are needs (home, food shopping, energy). Extras are nice-to-haves (eating out, shopping, fun). Future you is money you save or invest. A common guide is 50% / 30% / 20%.'],
   ['What does the money health score mean?', 'A quick score out of 100 based on four good habits: staying within your plan, saving regularly, paying bills on time and having a safety cushion of about three months of essentials.'],
   ['Cheapest way or quick wins for debts?', 'Both pay the minimum on every debt. "Cheapest way" puts extra money on the debt with the highest interest, so you pay least overall. "Quick wins" clears the smallest debt first, which feels great and keeps you motivated.'],
@@ -560,7 +658,7 @@ const FAQ: [string, string][] = [
   ['Moving money or paying off a card', "Use Accounts → Move money. Moving money between your own accounts isn't spending, so it doesn't count against your plan. 'Pay off card' fills in what you owe."],
   ['One bill was different this month', 'Tap the bill in Activity, Calendar or Bills. You can change the amount or date for just that one, skip it, or mark it paid. The others stay the same.'],
   ['What are sub-categories?', 'Smaller groups inside a category, like Fuel and Parking inside Getting around. Pick one when you add spending, then see totals for each in Activity and My plan.'],
-  ['I added something twice', "Tally warns you before you add the same amount for the same thing on nearly the same day, and marks possible doubles in Activity with 'twice?'."],
+  ['I added something twice', "SpendCop warns you before you add the same amount for the same thing on nearly the same day, and marks possible doubles in Activity with 'twice?'."],
   ['Can I open my data in Excel or Google Sheets?', 'Yes. Go to My year or Settings and tap "Download Excel workbook". It has sheets for your year, categories, every transaction, bills, accounts, goals, debts and net worth. Google Sheets opens it via File → Import.'],
   ['Where is my data kept?', 'Only in this browser, on this device. Nothing is sent to a server. Use Settings → Back up to save a copy or move it to another device.'],
 ]
@@ -587,7 +685,7 @@ function More() {
   const items: [View | 'help' | 'tour', string, string, typeof Goal][] = [
     ['calendar', 'Calendar', 'Your month day by day', CalendarDays], ['bills', 'Bills & pay', 'Things that repeat', CalendarClock],
     ['paycheck', 'Paycheck', 'Plan pay period by pay period', Banknote], ['year', 'My year', 'Totals, trends, reflection', BarChart3],
-    ['trips', 'Trips', 'Holidays and their costs', Plane], ['goals', 'Goals', 'Save up for things', Goal], ['debts', 'Debts', 'Get debt-free faster', Scale],
+    ['trips', 'Trips', 'Holidays and their costs', Plane], ['goals', 'Goals', 'Save up for things', Goal], ['debts', 'Debts', 'Get debt-free faster', Scale], ['emis', 'Loans & EMIs', 'Instalments and what is left', Landmark],
     ['accounts', 'Accounts', 'Banks, cards and cash', Wallet], ['worth', "What I'm worth", 'Own minus owe', Landmark],
     ['household', 'Household', 'Who spends what', Users], ['settings', 'Settings', 'Names, currency, data', Cog],
     ['help', 'Help', 'Simple answers', HelpCircle], ['tour', 'Take the tour', 'A 1-minute walk-through', Compass],
@@ -716,7 +814,7 @@ function CsvImport() {
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-3 gap-2 text-center">
           <div className="rounded-2xl bg-good-soft p-3"><p className="font-display text-[24px] font-bold text-good">{plan.rows.length.toLocaleString()}</p><p className="text-[12.5px] text-ink2">rows look good</p></div>
-          <div className="rounded-2xl bg-warn-soft p-3"><p className="font-display text-[24px] font-bold text-warn">{plan.dupCount.toLocaleString()}</p><p className="text-[12.5px] text-ink2">may already be in Tally</p></div>
+          <div className="rounded-2xl bg-warn-soft p-3"><p className="font-display text-[24px] font-bold text-warn">{plan.dupCount.toLocaleString()}</p><p className="text-[12.5px] text-ink2">may already be in SpendCop</p></div>
           <div className="rounded-2xl bg-bad-soft p-3"><p className="font-display text-[24px] font-bold text-bad">{plan.invalid.length.toLocaleString()}</p><p className="text-[12.5px] text-ink2">can't be read</p></div>
         </div>
         <div className="-mx-6 overflow-x-auto px-6">
@@ -731,14 +829,14 @@ function CsvImport() {
         {plan.invalid.length > 0 && <details className="rounded-2xl border border-line p-3 text-[13px]"><summary className="cursor-pointer font-semibold text-bad">Rows that will be left out ({plan.invalid.length})</summary><ul className="mt-2 max-h-32 overflow-auto text-ink2">{plan.invalid.slice(0, 50).map((x) => <li key={x.line}>Line {x.line}: {x.reason}</li>)}</ul></details>}
         {plan.newCats.length > 0 && <p className="text-[13px] text-ink2">New categories will be created: {plan.newCats.slice(0, 8).join(', ')}{plan.newCats.length > 8 ? '…' : ''}</p>}
         {plan.newTrips.length > 0 && <p className="text-[13px] text-ink2">New trips will be created from the Trip column: {plan.newTrips.slice(0, 6).join(', ')}{plan.newTrips.length > 6 ? '…' : ''}</p>}
-        {plan.dupCount > 0 && <label className="flex items-center gap-2 text-[14px] font-medium"><input type="checkbox" checked={skipDupes} onChange={(e) => setSkipDupes(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /> Skip the {plan.dupCount} that may already be in Tally (same date and amount)</label>}
+        {plan.dupCount > 0 && <label className="flex items-center gap-2 text-[14px] font-medium"><input type="checkbox" checked={skipDupes} onChange={(e) => setSkipDupes(e.target.checked)} className="h-4 w-4 accent-[var(--accent)]" /> Skip the {plan.dupCount} that may already be in SpendCop (same date and amount)</label>}
         <Foot><Button variant="ghost" className="mr-auto" onClick={() => setPlan(null)}>Back</Button><Button variant="primary" onClick={commit} disabled={!adding}>Import {adding.toLocaleString()} item{adding === 1 ? '' : 's'}</Button></Foot>
       </div>
     )
   }
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-[14.5px] text-ink2">Most banks let you download your transactions as a CSV file. Choose that file here. Tally reads the date, description and amount (and category, type or person if present). Negative amounts count as money out. You'll see a preview before anything is added.</p>
+      <p className="text-[14.5px] text-ink2">Most banks let you download your transactions as a CSV file. Choose that file here. SpendCop reads the date, description and amount (and category, type or person if present). Negative amounts count as money out. You'll see a preview before anything is added.</p>
       <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-line2 p-6 text-center hover:border-accent">
         <Upload className="text-accent" /><span className="font-semibold">Choose a CSV file</span><span className="text-[13px] text-muted">or paste the text below</span>
         <input type="file" accept=".csv,text/csv,text/plain" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (!f) return; const r = new FileReader(); r.onload = () => setText(String(r.result)); r.readAsText(f) }} />
@@ -750,6 +848,49 @@ function CsvImport() {
     </div>
   )
 }
+/* ---------------- export: a month (or more) as a PDF report or a CSV file ---------------- */
+function Export({ month }: { month?: string }) {
+  const s = useData()
+  const [fmt, setFmt] = useState<'pdf' | 'csv'>('pdf')
+  const [range, setRange] = useState<'month' | 'year' | 'all'>('month')
+  const [k, setK] = useState(month ?? THIS_MONTH)
+  const [busy, setBusy] = useState(false)
+  const ok = /^\d{4}-\d{2}$/.test(k)
+  const span = range === 'month' ? [`${k}-01`, monthEnd(k)] : range === 'year' ? [`${k.slice(0, 4)}-01-01`, `${k.slice(0, 4)}-12-31`] : ['1900-01-01', '2999-12-31']
+  const n = ok ? itemsIn(s, span[0], span[1]).length : 0
+  const go = async () => {
+    setBusy(true)
+    try {
+      let r
+      if (fmt === 'pdf') {
+        const { monthlyReport } = await import('../lib/report')
+        r = await saveFile(`spendcop-${k}.pdf`, await monthlyReport(s, k))
+      } else {
+        const name = range === 'month' ? k : range === 'year' ? k.slice(0, 4) : 'all'
+        r = await saveFile(`spendcop-${name}.csv`, new Blob([toCsvRange(s, span[0], span[1])], { type: 'text/csv;charset=utf-8' }))
+      }
+      if (r === 'saved') done(fmt === 'pdf' ? `Your ${monthName(k)} report is ready` : 'Your CSV file is ready')
+      else toast(r === 'declined' ? 'Download cancelled' : 'Could not save the file here')
+    } catch { toast("Couldn't make the file. Try again.") } finally { setBusy(false) }
+  }
+  return (
+    <div className="flex flex-col gap-5">
+      <div><p className="mb-2 text-[13.5px] font-semibold text-ink2">Format</p>
+        <Segmented label="Format" value={fmt} onChange={setFmt} options={[['pdf', <><FileText size={15} />PDF report</>], ['csv', <><FileSpreadsheet size={15} />CSV file</>]]} /></div>
+      {fmt === 'csv' && <div><p className="mb-2 text-[13.5px] font-semibold text-ink2">Which entries</p>
+        <Segmented label="Which entries" value={range} onChange={setRange} options={[['month', 'One month'], ['year', 'Whole year'], ['all', 'Everything']]} /></div>}
+      {(fmt === 'pdf' || range !== 'all') && <Field label={fmt === 'csv' && range === 'year' ? 'Year (pick any month in it)' : 'Month'}><input className="field !w-[200px]" type="month" value={k} onChange={(e) => setK(e.target.value)} /></Field>}
+      <div className="rounded-2xl bg-surface2 p-4 text-[14px] text-ink2">
+        {fmt === 'pdf'
+          ? <>A printable report for <b className="text-ink">{ok ? monthName(k) : '…'}</b>: the month at a glance, plan vs spending, bills and pay, loans and EMIs, goals and every entry.</>
+          : <>{n.toLocaleString()} entr{n === 1 ? 'y' : 'ies'}{range === 'month' && ok ? ` in ${monthName(k)}` : range === 'year' && ok ? ` in ${k.slice(0, 4)}` : ''}, with date, description, type, category, account, person, amount and whether it's paid or still due. Opens in Excel or Google Sheets.</>}
+        <span className="mt-1 block text-[12.5px] text-muted">Made on this device. Nothing is uploaded.</span>
+      </div>
+      <Foot><Button variant="primary" onClick={go} disabled={!ok && range !== 'all' || busy}><Download size={16} />{busy ? 'Making file…' : fmt === 'pdf' ? 'Export PDF' : 'Export CSV'}</Button></Foot>
+    </div>
+  )
+}
+
 function Backup() {
   const s = useData()
   const [tab, setTab] = useState<'excel' | 'csv' | 'json' | 'restore'>('excel')
@@ -759,8 +900,8 @@ function Backup() {
   const ref = useRef<HTMLTextAreaElement>(null)
   const copy = () => navigator.clipboard?.writeText(text).then(() => { if (tab === 'json') update((d) => { d.settings.lastBackup = new Date().toISOString() }); toast('Copied') }, () => { ref.current?.select(); toast('Press Ctrl+C (or ⌘C) to copy') }) ?? (ref.current?.select(), toast('Press Ctrl+C (or ⌘C) to copy'))
   const download = async () => {
-    const r = tab === 'excel' ? await saveFile(`tally-${THIS_MONTH.slice(0, 4)}.xlsx`, await workbook(s, +THIS_MONTH.slice(0, 4)))
-      : await saveFile(tab === 'csv' ? 'tally-activity.csv' : 'tally-backup.json', text)
+    const r = tab === 'excel' ? await saveFile(`spendcop-${THIS_MONTH.slice(0, 4)}.xlsx`, await workbook(s, +THIS_MONTH.slice(0, 4)))
+      : await saveFile(tab === 'csv' ? 'spendcop-activity.csv' : 'spendcop-backup.json', text)
     if (r === 'saved' && tab === 'json') update((d) => { d.settings.lastBackup = new Date().toISOString() })
     toast(r === 'saved' ? 'File ready' : r === 'declined' ? 'Download cancelled' : 'Downloads are blocked here. Use Copy instead.')
   }
@@ -788,20 +929,20 @@ function Backup() {
         </>
       ) : tab === 'restore' ? (
         <>
-          <p className="text-[14.5px] text-ink2">Paste a full backup here. It replaces what's in Tally now.</p>
+          <p className="text-[14.5px] text-ink2">Paste a full backup here. It replaces what's in SpendCop now.</p>
           <textarea className="field min-h-[160px] font-mono text-[12px]" value={paste} onChange={(e) => setPaste(e.target.value)} aria-label="Backup text" />
           <Err msg={err} />
           {found ? (
             <div className="rounded-2xl border border-warn bg-warn-soft p-4 text-[14px]">
               <p className="font-semibold">This backup has {found.summary}</p>
-              <p className="mt-1 text-ink2">Restoring replaces everything in Tally now. You can undo straight afterwards.</p>
+              <p className="mt-1 text-ink2">Restoring replaces everything in SpendCop now. You can undo straight afterwards.</p>
               <Foot><Button variant="ghost" onClick={() => setFound(null)}>Cancel</Button><Button variant="danger" onClick={confirmRestore}>Replace my data</Button></Foot>
             </div>
           ) : <Foot><Button variant="primary" onClick={restore}>Check backup</Button></Foot>}
         </>
       ) : (
         <>
-          <p className="text-[14.5px] text-ink2">{tab === 'csv' ? 'Everything you have paid or received, ready for Excel or Google Sheets.' : 'A complete copy of your Tally. Keep it somewhere safe, or use it to move to another device.'}</p>
+          <p className="text-[14.5px] text-ink2">{tab === 'csv' ? 'Everything you have paid or received, ready for Excel or Google Sheets.' : 'A complete copy of your SpendCop. Keep it somewhere safe, or use it to move to another device.'}</p>
           <textarea ref={ref} readOnly className="field min-h-[160px] font-mono text-[12px]" value={text} aria-label="Export text" />
           <Foot><Button onClick={download}><Download size={16} />Download</Button><Button variant="primary" onClick={copy}><Copy size={16} />Copy</Button></Foot>
         </>

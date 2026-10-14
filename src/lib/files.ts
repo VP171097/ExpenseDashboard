@@ -34,7 +34,7 @@ export async function saveFile(filename: string, data: Blob | string): Promise<'
   }
 }
 
-/** A workbook that opens in Excel and Google Sheets: one sheet per part of Tally. */
+/** A workbook that opens in Excel and Google Sheets: one sheet per part of SpendCop. */
 export async function workbook(s: State, year: number) {
   const XLSX = await import('xlsx')
   const wb = XLSX.utils.book_new()
@@ -46,7 +46,7 @@ export async function workbook(s: State, year: number) {
   const y = yearStats(s, year)
 
   add('Summary', [
-    [`Tally ${year}`], [],
+    [`SpendCop ${year}`], [],
     ['Month', 'Money in', 'Money out', 'Put aside', 'Left over', 'Plan'],
     ...y.months.map((k, i) => { const m = y.ms[i]; return [monthName(k), r2(m.income), r2(m.spent), r2(m.saved), r2(m.income - m.spent - m.saved), r2(sum(spendCats(s).map((c) => planFor(s, c, k))))] }),
     ['Total', r2(y.income), r2(y.spent), r2(y.saved), r2(y.income - y.spent - y.saved)],

@@ -1,8 +1,8 @@
 /**
- * Ask Tally: questions about your own money in plain words.
+ * Ask SpendCop: questions about your own money in plain words.
  *
- * Common questions are answered instantly on this device by Tally's built-in answers (private,
- * offline). Anything else goes to Tally AI through the person's account, when they are logged in.
+ * Common questions are answered instantly on this device by SpendCop's built-in answers (private,
+ * offline). Anything else goes to SpendCop AI through the person's account, when they are logged in.
  */
 import { AnimatePresence, motion } from 'framer-motion'
 import { Bot, Gauge, LogIn, RefreshCw, Send, Sparkles, Square, X, Zap } from 'lucide-react'
@@ -36,7 +36,7 @@ async function send(q: string, forceAi = false) {
   if (!forceAi) {
     const local = answerLocally(latestData, question)
     if (local || !ready()) {
-      const cta = useAuth.getState().status === 'off' ? '' : useAi.getState().enabled ? '\n\nLog in to ask Tally AI anything else.' : '\n\nTurn on Tally AI in Settings to ask anything else.'
+      const cta = useAuth.getState().status === 'off' ? '' : useAi.getState().enabled ? '\n\nLog in to ask SpendCop AI anything else.' : '\n\nTurn on SpendCop AI in Settings to ask anything else.'
       const text = local?.text ?? `I can't answer that one on my own yet. Here are things I can answer instantly:\n\n${QUICK_EXAMPLES.map((x) => `- ${x}`).join('\n')}${cta}`
       useAsk.setState({ msgs: [...s.msgs, { role: 'user', text: question }, { role: 'assistant', text, local: true, hint: !local }] })
       return
@@ -72,7 +72,7 @@ export default function AskTally() {
       {open && (
         <>
           <motion.div className="fixed inset-0 z-[70] bg-black/40 backdrop-blur-[2px]" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => useAsk.setState({ open: false })} />
-          <motion.aside role="dialog" aria-modal="true" aria-label="Ask Tally" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 380, damping: 38 }}
+          <motion.aside role="dialog" aria-modal="true" aria-label="Ask SpendCop" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 380, damping: 38 }}
             className="fixed inset-y-0 right-0 z-[71] flex w-full max-w-[460px] flex-col border-l border-line bg-surface shadow-pop" style={{ backdropFilter: 'none' }}>
             <Panel />
           </motion.aside>
@@ -117,8 +117,8 @@ function Panel() {
       <header className="flex items-center gap-3 border-b border-line px-5 py-4">
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent"><Bot size={20} /></span>
         <div className="min-w-0 flex-1">
-          <h2 className="font-display text-[18px] font-extrabold">Ask Tally</h2>
-          <p className="truncate text-[12px] text-muted">{aiOn ? 'Instant answers + Tally AI' : 'Instant answers on this device'}</p>
+          <h2 className="font-display text-[18px] font-extrabold">Ask SpendCop</h2>
+          <p className="truncate text-[12px] text-muted">{aiOn ? 'Instant answers + SpendCop AI' : 'Instant answers on this device'}</p>
         </div>
         {msgs.length > 0 && <button type="button" onClick={() => { abort?.abort(); useAsk.setState({ msgs: [] }) }} className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-ink" aria-label="New conversation" title="New conversation"><RefreshCw size={16} /></button>}
         <button type="button" onClick={() => useAsk.setState({ open: false })} className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-ink" aria-label="Close"><X size={18} /></button>
@@ -152,7 +152,7 @@ function Panel() {
                 <div className={`min-w-0 flex-1 rounded-2xl rounded-tl-md border px-3.5 py-2.5 text-[14.5px] leading-relaxed ${m.error ? 'border-bad bg-bad-soft' : 'border-line bg-surface2/50'}`}>
                   {m.text ? <Rich text={m.text} /> : <span className="inline-flex gap-1 py-1" aria-label="Thinking">{[0, 1, 2].map((d) => <motion.i key={d} className="h-2 w-2 rounded-full bg-muted" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: d * 0.15 }} />)}</span>}
                   {m.local && !m.hint && <p className="mt-2 flex flex-wrap items-center gap-x-2 border-t border-line pt-2 text-[11.5px] text-muted"><Zap size={11} />Instant answer, worked out on this device
-                    {aiOn && !busy && i === msgs.length - 1 && <button type="button" className="font-semibold text-accent" onClick={() => { const lastQ = msgs[i - 1]?.text; if (lastQ) { useAsk.setState({ msgs: msgs.slice(0, i - 1) }); setTimeout(() => send(lastQ, true), 0) } }}>Ask Tally AI for more</button>}</p>}
+                    {aiOn && !busy && i === msgs.length - 1 && <button type="button" className="font-semibold text-accent" onClick={() => { const lastQ = msgs[i - 1]?.text; if (lastQ) { useAsk.setState({ msgs: msgs.slice(0, i - 1) }); setTimeout(() => send(lastQ, true), 0) } }}>Ask SpendCop AI for more</button>}</p>}
                   {m.error && <button type="button" className="mt-2 block text-[13px] font-semibold text-accent" onClick={() => { const lastQ = msgs[i - 1]?.text; useAsk.setState({ msgs: msgs.slice(0, i - 1) }); if (lastQ) setTimeout(() => send(lastQ, true), 0) }}>Try again</button>}
                 </div>
               </div>
@@ -161,7 +161,7 @@ function Panel() {
         {!aiOn && ai.enabled && (authStatus === 'signed-out' || authStatus === 'loading') && (
           <button type="button" onClick={() => { useAsk.setState({ open: false }); useEntry.getState().go('auth', 'login') }} className="mt-5 flex w-full items-center gap-3 rounded-2xl border border-dashed border-line2 p-4 text-left hover:border-accent">
             <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent"><LogIn size={17} /></span>
-            <span><b className="block text-[14px]">Log in to ask anything</b><span className="text-[13px] text-ink2">Tally AI answers any other question about your money.</span></span>
+            <span><b className="block text-[14px]">Log in to ask anything</b><span className="text-[13px] text-ink2">SpendCop AI answers any other question about your money.</span></span>
           </button>
         )}
         <div ref={end} />
@@ -176,7 +176,7 @@ function Panel() {
             ? <button type="button" onClick={() => abort?.abort()} className="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-xl border border-line2" aria-label="Stop"><Square size={16} /></button>
             : <button type="submit" disabled={!q.trim()} className="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-xl bg-accent text-accent-ink disabled:opacity-40" aria-label="Send"><Send size={18} /></button>}
         </form>
-        <p className="mt-2 text-[11.5px] text-muted">{aiOn ? 'Common questions are answered on this device. Others are answered by Tally AI (Google Gemini) from a summary of your dashboard. Double-check big decisions.' : 'Answered on this device from your own numbers. Nothing is sent anywhere.'}</p>
+        <p className="mt-2 text-[11.5px] text-muted">{aiOn ? 'Common questions are answered on this device. Others are answered by SpendCop AI (Google Gemini) from a summary of your dashboard. Double-check big decisions.' : 'Answered on this device from your own numbers. Nothing is sent anywhere.'}</p>
       </footer>
     </>
   )

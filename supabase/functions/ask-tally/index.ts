@@ -1,5 +1,5 @@
 /**
- * Tally AI: answers questions about a signed-in user's dashboard with Google Gemini.
+ * SpendCop AI: answers questions about a signed-in user's dashboard with Google Gemini.
  *
  * The browser sends a summary of the dashboard plus the conversation; this function checks the
  * caller is a signed-in user of your project, asks Gemini, and streams the answer back as
@@ -35,8 +35,8 @@ Deno.serve(async (req) => {
     global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } },
   })
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return json(401, { error: 'Log in to use Tally AI.' })
-  if (!env('GEMINI_API_KEY')) return json(503, { error: 'Tally AI is not set up on the server yet.' })
+  if (!user) return json(401, { error: 'Log in to use SpendCop AI.' })
+  if (!env('GEMINI_API_KEY')) return json(503, { error: 'SpendCop AI is not set up on the server yet.' })
 
   let body: { context?: unknown; turns?: unknown }
   try { body = await req.json() } catch { return json(400, { error: 'Badly formed request.' }) }
@@ -61,9 +61,9 @@ Deno.serve(async (req) => {
 
 function friendly(err: unknown) {
   if (err instanceof ApiError) {
-    if (err.status === 429) return 'Tally AI is busy right now. Try again in a minute.'
-    if (err.status === 400 || err.status === 401 || err.status === 403) return 'Tally AI is not set up correctly on the server. (Check the GEMINI_API_KEY secret.)'
-    return `Tally AI had a problem (${err.status}). Try again.`
+    if (err.status === 429) return 'SpendCop AI is busy right now. Try again in a minute.'
+    if (err.status === 400 || err.status === 401 || err.status === 403) return 'SpendCop AI is not set up correctly on the server. (Check the GEMINI_API_KEY secret.)'
+    return `SpendCop AI had a problem (${err.status}). Try again.`
   }
-  return 'Tally AI could not answer just now. Try again.'
+  return 'SpendCop AI could not answer just now. Try again.'
 }

@@ -15,6 +15,13 @@ export function upgrade(d: State | null): State | null {
   d.settings.payAnchor ??= THIS_MONTH + '-01'
   d.settings.payDays ??= 14
   d.settings.effects ??= 'full'
+  d.emis ??= []
+  d.settings.salaryNextMonth ??= true
+  d.settings.offDays ??= [0, 6]
+  // copies from before payday rules: keep paying on the day of the month already set
+  d.settings.payday ??= { rule: 'date', day: +d.settings.payAnchor.slice(8, 10) || 1, shift: 'before' }
+  // light is the default look; anyone who later picks "match device" keeps it
+  if (!d.settings.themeV) { if (d.settings.theme === 'system') d.settings.theme = 'light'; d.settings.themeV = 2 }
   return d
 }
 /** Record this month's net worth so the history chart has a point for it. */
@@ -68,7 +75,7 @@ let queued: State | null = null
 useStore.subscribe((s) => { queued = s.data })
 onSave((ok, _where, error) => {
   if (ok) { confirmed = queued; if (useStore.getState().saveError) useStore.setState({ saveError: null }); return }
-  const msg = error === 'quota' ? 'This browser is out of storage space for Tally.' : 'This browser would not let Tally save.'
+  const msg = error === 'quota' ? 'This browser is out of storage space for SpendCop.' : 'This browser would not let SpendCop save.'
   const cur = useStore.getState().data
   if (confirmed && cur !== confirmed) useStore.setState({ data: confirmed })
   useStore.setState({ saveError: msg })
@@ -79,13 +86,14 @@ export const useData = () => useStore((s) => s.data) as State
 export const update = (fn: (d: State) => void) => useStore.getState().update(fn)
 export const replaceData = (d: State | null) => useStore.getState().replace(d)
 
-export type View = 'home' | 'activity' | 'calendar' | 'plan' | 'paycheck' | 'year' | 'bills' | 'goals' | 'debts' | 'accounts' | 'worth' | 'household' | 'trips' | 'settings'
+export type View = 'home' | 'activity' | 'calendar' | 'plan' | 'paycheck' | 'year' | 'bills' | 'goals' | 'debts' | 'emis' | 'accounts' | 'worth' | 'household' | 'trips' | 'settings'
 export type SheetSpec =
   | { type: 'quick'; edit?: Tx; date?: string; kind?: Kind; trip?: string }
   | { type: 'bill'; id?: string }
   | { type: 'goal'; id?: string }
   | { type: 'trip'; id?: string }
   | { type: 'debt'; id?: string }
+  | { type: 'emi'; id?: string; kind?: 'loan' | 'card' }
   | { type: 'holding'; id?: string; kind?: 'own' | 'owe' }
   | { type: 'account'; id?: string }
   | { type: 'category'; id?: string }
@@ -93,6 +101,7 @@ export type SheetSpec =
   | { type: 'more' }
   | { type: 'csv' }
   | { type: 'backup' }
+  | { type: 'export'; month?: string }
   | { type: 'confirm'; title: string; text: string; label: string; run: () => void }
   | { type: 'occ'; ruleId: string; date: string }
   | { type: 'transfer'; id?: string; from?: string; to?: string }

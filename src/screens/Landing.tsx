@@ -1,5 +1,5 @@
 /**
- * The front page people see before they have any data: what Tally does, with a log-in button
+ * The front page people see before they have any data: what SpendCop does, with a log-in button
  * in the top corner. Every number on this page is example data and is labelled as such.
  */
 import { AnimatePresence, motion, useInView } from 'framer-motion'
@@ -9,7 +9,7 @@ import {
   TrendingDown, TrendingUp, Trophy, Users, Utensils, Wallet, WifiOff, X, XCircle, Zap,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { useEntry } from '../lib/entry'
+import { useEntry, useLegal } from '../lib/entry'
 import { celebrate, Tilt } from '../components/ui'
 import desk from '../assets/landing/desk.webp'
 import plan from '../assets/landing/plan.webp'
@@ -83,7 +83,7 @@ function useLandingTheme() {
   return { dark, toggle }
 }
 
-const NAV: [string, string][] = [['features', 'Features'], ['journey', 'How it works'], ['ai', 'Ask Tally'], ['together', 'Together'], ['privacy', 'Privacy'], ['faq', 'FAQ']]
+const NAV: [string, string][] = [['features', 'Features'], ['journey', 'How it works'], ['ai', 'Ask SpendCop'], ['together', 'Together'], ['privacy', 'Privacy'], ['faq', 'FAQ']]
 
 export default function Landing() {
   const go = useEntry((e) => e.go)
@@ -92,7 +92,7 @@ export default function Landing() {
   const [menu, setMenu] = useState(false)
   const login = () => go('auth', 'login'), start = () => go('auth', 'signup'), tryIt = () => go('setup')
   const jump = (id: string) => { setMenu(false); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: id === 'ask-demo' ? 'center' : 'start' }) }
-  // the Ask Tally demo can be driven from other parts of the page
+  // the Ask SpendCop demo can be driven from other parts of the page
   const [qa, setQa] = useState(0)
   const [ownQ, setOwnQ] = useState('')
   const askDemo = (i: number) => { setOwnQ(''); setQa(i); jump('ask-demo') }
@@ -103,7 +103,7 @@ export default function Landing() {
       <header className="sticky top-0 z-50 border-b border-line backdrop-blur-xl" style={{ background: 'color-mix(in srgb, var(--bg) 78%, transparent)' }}>
         <div className="mx-auto flex h-16 max-w-6xl items-center gap-3 px-4 sm:px-6">
           <a href="#top" onClick={(e) => { e.preventDefault(); scrollTo({ top: 0, behavior: 'smooth' }) }} className="flex items-center gap-2.5 font-display text-[21px] font-extrabold">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-accent-ink shadow-pop"><Wallet size={18} /></span>Tally
+            <span className="grid h-9 w-9 place-items-center rounded-xl bg-accent text-accent-ink shadow-pop"><Wallet size={18} /></span>SpendCop
           </a>
           <nav className="mx-auto hidden items-center gap-1 rounded-full border border-line bg-surface/60 p-1 lg:flex" aria-label="Page sections">
             {NAV.map(([id, l]) => <button key={id} type="button" onClick={() => jump(id)} className="rounded-full px-3.5 py-1.5 text-[13.5px] font-semibold text-ink2 transition-colors hover:bg-surface2 hover:text-ink">{l}</button>)}
@@ -163,7 +163,7 @@ function Hero({ m, dark, onStart, onTry, onTour, jump, askDemo }: { m: Money; da
             <span className="bg-clip-text text-transparent" style={{ backgroundImage: 'linear-gradient(100deg, var(--accent), var(--good))' }}>Every single day.</span>
           </motion.h1>
           <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mt-5 max-w-xl text-[17px] leading-relaxed text-ink2 sm:text-[18.5px]">
-            Tally sets your bills and savings aside first, then shows one clear number you can spend. Plan holidays, fill savings jars, share costs with family, and ask questions about your own money in plain words.
+            SpendCop sets your bills and savings aside first, then shows one clear number you can spend. Plan holidays, fill savings jars, share costs with family, and ask questions about your own money in plain words.
           </motion.p>
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }} className="mt-8 flex flex-wrap gap-3">
             <button type="button" onClick={onStart} className="inline-flex items-center gap-2 rounded-2xl bg-accent px-6 py-3.5 text-[16px] font-bold text-accent-ink shadow-pop transition-transform hover:-translate-y-0.5">Start free <ArrowRight size={18} /></button>
@@ -191,21 +191,21 @@ function Hero({ m, dark, onStart, onTry, onTour, jump, askDemo }: { m: Money; da
                   <i className="h-2.5 w-2.5 rounded-full bg-bad" /><i className="h-2.5 w-2.5 rounded-full bg-warn" /><i className="h-2.5 w-2.5 rounded-full bg-good" />
                   <span className="ml-2 truncate font-mono text-[10.5px] text-muted">tally · your money</span>
                 </div>
-                <img src={dark ? shotDark : shotLight} alt="Tally's home screen showing safe to spend, money health and monthly totals" className="block w-full" decoding="async" />
+                <img src={dark ? shotDark : shotLight} alt="SpendCop's home screen showing safe to spend, money health and monthly totals" className="block w-full" decoding="async" />
               </motion.div>
-              <motion.img src={shotPhone} alt="Tally on a phone" decoding="async" initial={{ opacity: 0, y: 40, rotate: 6 }} animate={{ opacity: 1, y: 0, rotate: 4 }} transition={{ delay: 0.45, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
+              <motion.img src={shotPhone} alt="SpendCop on a phone" decoding="async" initial={{ opacity: 0, y: 40, rotate: 6 }} animate={{ opacity: 1, y: 0, rotate: 4 }} transition={{ delay: 0.45, duration: 0.8, ease: [0.16, 1, 0.3, 1] }}
                 className="absolute -bottom-14 right-[2%] w-[26%] rounded-[22px] border-4 border-[#0b0f1d] shadow-pop" />
               <Float className="absolute -left-3 top-6 sm:-left-8" delay={0.6} onClick={() => jump('whatif')} label="Try the safe-to-spend calculator">
                 <p className="text-[11px] font-bold uppercase tracking-wider text-muted">Safe today</p>
                 <p className="font-display text-[22px] font-extrabold text-good tnum">{m(77)}<span className="text-[12px] font-semibold text-ink2"> / day</span></p>
               </Float>
-              <Float className="absolute -right-2 top-[38%] hidden sm:block sm:-right-8" delay={0.8} onClick={() => askDemo(1)} label="Ask Tally why the health score is 72">
+              <Float className="absolute -right-2 top-[38%] hidden sm:block sm:-right-8" delay={0.8} onClick={() => askDemo(1)} label="Ask SpendCop why the health score is 72">
                 <p className="flex items-center gap-1.5 text-[12.5px] font-bold"><Gauge size={14} className="text-accent" />Money health <span className="text-good">72</span></p>
                 <p className="text-[11.5px] text-ink2">Doing well · up 8 this month</p>
               </Float>
             </div>
           </Tilt>
-          <p className="mt-16 text-center text-[12px] text-muted">The real Tally app, shown with example data.</p>
+          <p className="mt-16 text-center text-[12px] text-muted">The real SpendCop app, shown with example data.</p>
         </div>
       </div>
     </section>
@@ -219,8 +219,8 @@ const Float = ({ children, className, delay, onClick, label }: { children: React
 
 function TrustStrip({ jump }: { jump: (id: string) => void }) {
   const items: [typeof Check, string, string, string, string][] = [
-    [ShieldCheck, 'No bank login', 'You stay in control', 'Tally never asks for your bank password. You add entries yourself, or import a CSV file your bank gives you.', 'privacy'],
-    [WifiOff, 'Offline first', 'Saved on your device', 'Everything is saved in your browser first, so Tally opens instantly and works on a plane. With an account, it syncs when you are back online.', 'privacy'],
+    [ShieldCheck, 'No bank login', 'You stay in control', 'SpendCop never asks for your bank password. You add entries yourself, or import a CSV file your bank gives you.', 'privacy'],
+    [WifiOff, 'Offline first', 'Saved on your device', 'Everything is saved in your browser first, so SpendCop opens instantly and works on a plane. With an account, it syncs when you are back online.', 'privacy'],
     [Sparkles, 'Plain language', 'No finance jargon', 'Every number comes with a short, friendly explanation. Tap any ? in the app for a simple answer.', 'ai'],
     [FileSpreadsheet, 'Yours to keep', 'CSV, Excel, backups', 'Take everything with you at any time: a CSV for spreadsheets, an Excel workbook, or a full backup to restore later.', 'faq'],
   ]
@@ -251,14 +251,14 @@ function TrustStrip({ jump }: { jump: (id: string) => void }) {
   )
 }
 
-/* ---------- a month with Tally: steps on the left, a live phone on the right ---------- */
+/* ---------- a month with SpendCop: steps on the left, a live phone on the right ---------- */
 function Journey({ m }: { m: Money }) {
   const steps = [
-    { icon: Banknote, t: 'Payday arrives', s: 'Your pay lands and Tally starts the month.' },
+    { icon: Banknote, t: 'Payday arrives', s: 'Your pay lands and SpendCop starts the month.' },
     { icon: CalendarClock, t: 'Bills set aside', s: 'Rent, phone and subscriptions are reserved first.' },
     { icon: ShieldCheck, t: 'Safe to spend', s: 'One number for what is truly free.' },
     { icon: Coffee, t: 'Add a coffee', s: 'Three taps: what, how much, done.' },
-    { icon: Bot, t: 'Ask Tally', s: 'A plain answer from your own numbers.' },
+    { icon: Bot, t: 'Ask SpendCop', s: 'A plain answer from your own numbers.' },
     { icon: Target, t: 'Fill a goal jar', s: 'Money moved somewhere safe.' },
     { icon: Gauge, t: 'Health goes up', s: 'See your habits pay off.' },
   ]
@@ -273,7 +273,7 @@ function Journey({ m }: { m: Money }) {
   }, [paused, seen, steps.length])
   return (
     <Section id="journey">
-      <Head eyebrow="How it works" title="A month with Tally" sub="From payday to your goals, here's what Tally does for you along the way." />
+      <Head eyebrow="How it works" title="A month with SpendCop" sub="From payday to your goals, here's what SpendCop does for you along the way." />
       <div ref={ref} className="grid items-center gap-8 lg:grid-cols-[1fr_1.05fr]" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
         <ol className="flex flex-col gap-2.5">
           {steps.map((x, n) => (
@@ -291,7 +291,7 @@ function Journey({ m }: { m: Money }) {
         <div className="mx-auto w-full max-w-[380px]">
           <div className="rounded-[36px] border border-line bg-surface p-3 shadow-pop">
             <div className="overflow-hidden rounded-[28px] border border-line" style={{ background: 'var(--bg)' }}>
-              <div className="flex items-center justify-between border-b border-line px-5 py-3 text-[12px]"><span className="flex items-center gap-1.5 font-bold"><i className="h-2 w-2 rounded-full bg-good" />Tally</span><span className="font-mono text-muted">example</span></div>
+              <div className="flex items-center justify-between border-b border-line px-5 py-3 text-[12px]"><span className="flex items-center gap-1.5 font-bold"><i className="h-2 w-2 rounded-full bg-good" />SpendCop</span><span className="font-mono text-muted">example</span></div>
               <div className="relative h-[360px]">
                 <AnimatePresence mode="wait">
                   <motion.div key={i} initial={{ opacity: 0, y: 18, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.35 }} className="absolute inset-0 grid place-items-center p-5">
@@ -327,7 +327,7 @@ function JourneyScreen({ i, m }: { i: number; m: Money }) {
 function Shift() {
   const [after, setAfter] = useState(true)
   const before: [typeof Check, string, string][] = [[AlertTriangle, 'Spending drifts', 'No clear idea what is free to spend today.'], [XCircle, 'Bills surprise you', 'Yearly renewals and subscriptions catch you out.'], [TrendingDown, 'Savings stall', 'Whatever is left at month end quietly disappears.'], [FileSpreadsheet, 'Spreadsheets pile up', 'Hours of copying numbers around.']]
-  const now: [typeof Check, string, string][] = [[ShieldCheck, 'One clear number', 'Safe to spend, worked out for you every day.'], [CheckCircle2, 'Bills set aside first', 'Every regular payment reserved before you spend.'], [TrendingUp, 'Goals fill up', 'Jars for the holiday, the car, the rainy day.'], [Bot, 'Answers on tap', 'Ask Tally about your own numbers in plain words.']]
+  const now: [typeof Check, string, string][] = [[ShieldCheck, 'One clear number', 'Safe to spend, worked out for you every day.'], [CheckCircle2, 'Bills set aside first', 'Every regular payment reserved before you spend.'], [TrendingUp, 'Goals fill up', 'Jars for the holiday, the car, the rainy day.'], [Bot, 'Answers on tap', 'Ask SpendCop about your own numbers in plain words.']]
   const list = (rows: typeof before, tone: 'bad' | 'good') => rows.map(([I, t, s], n) => (
     <motion.li key={t} initial={{ opacity: 0, x: tone === 'bad' ? -12 : 12 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: n * 0.06 }} className="flex gap-3.5">
       <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-xl ${tone === 'bad' ? 'bg-bad-soft text-bad' : 'bg-good-soft text-good'}`}><I size={18} /></span>
@@ -336,11 +336,11 @@ function Shift() {
   ))
   return (
     <Section id="shift">
-      <Head title="From guessing to knowing" sub="Most money stress comes from not knowing. Tally swaps the guesswork for a calm, clear picture." />
+      <Head title="From guessing to knowing" sub="Most money stress comes from not knowing. SpendCop swaps the guesswork for a calm, clear picture." />
       <div className="mb-8 flex items-center justify-center gap-3" role="group" aria-label="Compare">
         <button type="button" aria-pressed={!after} onClick={() => setAfter(false)} className={`rounded-xl border px-4 py-2 text-[14px] font-semibold ${!after ? 'border-bad bg-bad-soft text-bad' : 'border-line text-ink2'}`}>Without a plan</button>
         <span className="flex items-center gap-1 text-accent" aria-hidden><i className="h-px w-8 bg-line2" /><ArrowRight size={16} /><i className="h-px w-8 bg-line2" /></span>
-        <button type="button" aria-pressed={after} onClick={() => setAfter(true)} className={`rounded-xl border px-4 py-2 text-[14px] font-semibold ${after ? 'border-good bg-good-soft text-good' : 'border-line text-ink2'}`}>With Tally</button>
+        <button type="button" aria-pressed={after} onClick={() => setAfter(true)} className={`rounded-xl border px-4 py-2 text-[14px] font-semibold ${after ? 'border-good bg-good-soft text-good' : 'border-line text-ink2'}`}>With SpendCop</button>
       </div>
       <div className="grid gap-5 md:grid-cols-2">
         <Panel className={`p-6 transition-opacity sm:p-8 ${after ? 'opacity-60' : ''}`}><div className="mb-5 h-1 w-16 rounded-full bg-bad" /><ul className="flex flex-col gap-5">{list(before, 'bad')}</ul></Panel>
@@ -350,7 +350,7 @@ function Shift() {
   )
 }
 
-/* ---------- Ask Tally ---------- */
+/* ---------- Ask SpendCop ---------- */
 const DEMO_QA = (m: Money): { q: string; a: string; pills: [string, string][] }[] => [
   { q: `Can I spend ${m(45)} on dinner tonight?`, a: `Yes. You have ${m(77)} a day free after rent, your phone bill and your savings. Dinner for ${m(45)} still leaves about ${m(73)} a day until payday. Enjoy it.`, pills: [['Safe today', m(77)], ['Bills still to pay', m(178)], ['Days left', '18']] },
   { q: 'Why is my health score 72?', a: `You get full marks for saving and paying bills on time. You lose points because spending is heading about ${m(240)} over your plan. Holding back on eating out for a week would lift you to around 85.`, pills: [['Score', '72 of 100'], ['Over plan', m(240)], ['Biggest pot', 'Eating out']] },
@@ -366,7 +366,7 @@ function AskSection({ m, n, setN, askDemo, ownQ, setOwnQ }: { m: Money; n: numbe
   const [own, setOwn] = useState('')
   const ref = useRef<HTMLDivElement>(null)
   const seen = useInView(ref, { once: true, margin: '-100px' })
-  const cur = ownQ ? { q: ownQ, a: `Great question. Once you've set up Tally, Ask Tally answers this from your own bills, plan and goals in a few seconds. Here it can only show example answers, so try one of the questions below.`, pills: [] as [string, string][] } : qa[n]
+  const cur = ownQ ? { q: ownQ, a: `Great question. Once you've set up SpendCop, Ask SpendCop answers this from your own bills, plan and goals in a few seconds. Here it can only show example answers, so try one of the questions below.`, pills: [] as [string, string][] } : qa[n]
   useEffect(() => {
     if (!seen) return
     setTyped(''); setThinking(true)
@@ -375,24 +375,24 @@ function AskSection({ m, n, setN, askDemo, ownQ, setOwnQ }: { m: Money; n: numbe
     const s = setTimeout(() => { setThinking(false); t = setInterval(() => { k += 3; setTyped(a.slice(0, k)); if (k >= a.length) clearInterval(t) }, 16) }, 700)
     return () => { clearTimeout(s); clearInterval(t) }
   }, [cur.a, seen])
-  const points: [string, string][] = [['Answers from your own numbers', 'Ask Tally reads your bills, plan, goals and recent spending before it replies.'], ['Nothing to copy and paste', 'No bank statements to upload. Tally already knows your picture.'], ['Plain words', 'Short, friendly answers with the one number that matters.'], ['Tally counts, AI explains', "Tally's own calculations produce the numbers. The AI explains them clearly."]]
+  const points: [string, string][] = [['Answers from your own numbers', 'Ask SpendCop reads your bills, plan, goals and recent spending before it replies.'], ['Nothing to copy and paste', 'No bank statements to upload. SpendCop already knows your picture.'], ['Plain words', 'Short, friendly answers with the one number that matters.'], ['SpendCop counts, AI explains', "SpendCop's own calculations produce the numbers. The AI explains them clearly."]]
   const pick = (i: number) => { setOwnQ(''); setN(i) }
   return (
     <Section id="ai">
       <div className="grid items-start gap-12 lg:grid-cols-[1fr_1.1fr]">
         <div>
-          <Head center={false} eyebrow="Ask Tally · AI" title="Your money has answers. Just ask." sub="Get clear answers about your own money, not generic tips. Ask how much you can spend, why your score changed, or when a goal will be done." />
+          <Head center={false} eyebrow="Ask SpendCop · AI" title="Your money has answers. Just ask." sub="Get clear answers about your own money, not generic tips. Ask how much you can spend, why your score changed, or when a goal will be done." />
           <ul className="flex flex-col gap-1">
             {points.map(([t, s], i) => <Reveal key={t} delay={i * 0.05}><li><button type="button" onClick={() => pick(i === 2 ? 1 : i === 3 ? 4 : i)} className="flex w-full gap-3 rounded-xl p-2 text-left hover:bg-surface2"><CheckCircle2 size={20} className="mt-0.5 shrink-0 text-good" /><span><b className="block">{t}</b><span className="text-[14.5px] text-ink2">{s}</span></span></button></li></Reveal>)}
           </ul>
-          <Reveal><p className="mt-6 flex gap-3 rounded-2xl border border-line bg-surface p-4 text-[14px] text-ink2"><ShieldCheck size={20} className="shrink-0 text-good" /><span><b className="text-ink">You stay in charge.</b> Ask Tally only reads a summary of your dashboard when you ask a question, and you can see exactly what it reads. It can't move money or change anything.</span></p></Reveal>
+          <Reveal><p className="mt-6 flex gap-3 rounded-2xl border border-line bg-surface p-4 text-[14px] text-ink2"><ShieldCheck size={20} className="shrink-0 text-good" /><span><b className="text-ink">You stay in charge.</b> Ask SpendCop only reads a summary of your dashboard when you ask a question, and you can see exactly what it reads. It can't move money or change anything.</span></p></Reveal>
         </div>
         <Reveal>
           <div ref={ref} id="ask-demo" className="scroll-mt-24">
           <Panel className="overflow-hidden">
             <div className="flex items-center gap-3 border-b border-line px-5 py-4">
               <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent"><Bot size={20} /></span>
-              <span className="min-w-0 flex-1"><b className="flex items-center gap-2">Ask Tally <span className="inline-flex items-center gap-1 rounded-full bg-good-soft px-2 py-0.5 text-[11px] font-semibold text-good"><i className="h-1.5 w-1.5 rounded-full bg-good" />Ready</span></b><span className="text-[12px] text-muted">Reading: {m(3811)} spent · {m(77)}/day safe · example data</span></span>
+              <span className="min-w-0 flex-1"><b className="flex items-center gap-2">Ask SpendCop <span className="inline-flex items-center gap-1 rounded-full bg-good-soft px-2 py-0.5 text-[11px] font-semibold text-good"><i className="h-1.5 w-1.5 rounded-full bg-good" />Ready</span></b><span className="text-[12px] text-muted">Reading: {m(3811)} spent · {m(77)}/day safe · example data</span></span>
             </div>
             <div className="min-h-[300px] space-y-3 p-5" aria-live="polite">
               <p className="ml-auto w-fit max-w-[85%] rounded-2xl rounded-br-md bg-accent px-4 py-2.5 text-[14.5px] text-accent-ink">{cur.q}</p>
@@ -424,12 +424,12 @@ function AskSection({ m, n, setN, askDemo, ownQ, setOwnQ }: { m: Money; n: numbe
         </Reveal>
       </div>
 
-      <div className="mt-20 grid gap-5 md:grid-cols-2" role="group" aria-label="Compare a general chatbot with Ask Tally">
+      <div className="mt-20 grid gap-5 md:grid-cols-2" role="group" aria-label="Compare a general chatbot with Ask SpendCop">
         {(['bot', 'tally'] as const).map((k, i) => {
           const on = cmp === k, bot = k === 'bot'
           return (
             <Reveal key={k} delay={i * 0.08}><button type="button" onClick={() => setCmp(k)} aria-pressed={on} className={`h-full w-full rounded-[24px] border bg-surface p-6 text-left shadow-card transition-all ${on ? (bot ? 'border-bad ring-1 ring-[var(--bad)]' : 'border-good ring-1 ring-[var(--good)]') : 'border-line opacity-80 hover:opacity-100'}`}>
-              <p className={`mb-3 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider ${bot ? 'text-muted' : 'text-good'}`}>{bot ? <XCircle size={16} /> : <Sparkles size={16} />}{bot ? 'A general chatbot' : 'Ask Tally'}</p>
+              <p className={`mb-3 flex items-center gap-2 text-[13px] font-bold uppercase tracking-wider ${bot ? 'text-muted' : 'text-good'}`}>{bot ? <XCircle size={16} /> : <Sparkles size={16} />}{bot ? 'A general chatbot' : 'Ask SpendCop'}</p>
               <p className={`mb-4 rounded-xl px-4 py-3 text-[13.5px] ${bot ? 'border border-line bg-surface2/60 font-mono text-ink2' : 'bg-good-soft font-semibold text-good'}`}>{bot ? '"Please paste your bank statement first…"' : `"Safe today: ${m(77)} · Bills still to pay: ${m(178)}"`}</p>
               <ul className="space-y-1.5 text-[14px] text-ink2">{(bot ? ['Has to be told everything, every time', 'Generic tips that fit nobody', 'No idea what bills are coming'] : ['Starts from your real dashboard', 'Knows the bills still to come', 'Tracks your goals, trips and debts']).map((x) => <li key={x}>• {x}</li>)}</ul>
               <AnimatePresence>{on && (
@@ -446,7 +446,7 @@ function AskSection({ m, n, setN, askDemo, ownQ, setOwnQ }: { m: Money; n: numbe
         })}
       </div>
 
-      <div className="mt-20"><Head title="Questions people ask every week" sub="Everyday decisions, answered in seconds. Tap one to see Ask Tally answer it." /></div>
+      <div className="mt-20"><Head title="Questions people ask every week" sub="Everyday decisions, answered in seconds. Tap one to see Ask SpendCop answer it." /></div>
       <div className="grid gap-5 md:grid-cols-3">
         {([[ShieldCheck, 'Know your daily limit', 'How much can you spend today without missing a bill?', 0], [Target, 'Track your goals', 'How far away is the target, and when will you get there?', 2], [Zap, 'Try what-ifs', 'See what happens if you save or spend a little differently.', 4]] as const).map(([I, t, s, qi], i) => (
           <Reveal key={t} delay={i * 0.06}><button type="button" onClick={() => askDemo(qi)} className="h-full w-full rounded-[24px] border border-line bg-surface p-6 text-left shadow-card transition-all hover:-translate-y-1 hover:border-accent">
@@ -470,7 +470,7 @@ function WhatIf({ m }: { m: Money }) {
   const goalAfter = Math.max(0, goal - intoGoal)
   return (
     <Section id="whatif">
-      <Head eyebrow="Try it" title="One purchase, the whole picture" sub="Pick something and move the slider. Tally instantly shows what it means for every day left this month and for your savings." />
+      <Head eyebrow="Try it" title="One purchase, the whole picture" sub="Pick something and move the slider. SpendCop instantly shows what it means for every day left this month and for your savings." />
       <Reveal><Panel className="mx-auto grid max-w-4xl gap-6 p-5 sm:p-8 md:grid-cols-2">
         <div>
           <p className="mb-3 text-[12px] font-bold uppercase tracking-wider text-muted">1. Choose</p>
@@ -503,14 +503,14 @@ function WhatIf({ m }: { m: Money }) {
 /* ---------- everything in one place ---------- */
 function Modules() {
   const mods = [
-    { icon: Banknote, t: 'Pay & income', d: 'Monthly, weekly, every two weeks or your own cycle. Tally plans each pay period and shows what is coming in.', img: shotDark, alt: 'Tally home screen' },
+    { icon: Banknote, t: 'Pay & income', d: 'Monthly, weekly, every two weeks or your own cycle. SpendCop plans each pay period and shows what is coming in.', img: shotDark, alt: 'SpendCop home screen' },
     { icon: PieChart, t: 'My plan', d: 'Give every pot a monthly amount, roll leftovers forward, or use "give every bit a job". 50/30/20 balance built in.', img: plan, alt: 'A notebook with a planning checklist' },
     { icon: CalendarClock, t: 'Bills & pay', d: 'Set rent, subscriptions and pay once. They appear on their dates; tick them off when paid and spot what to cancel.', img: writing, alt: 'Writing in a notebook next to a coffee' },
-    { icon: ShieldCheck, t: 'Safe to spend', d: 'Money in, minus spending, savings and the bills still to come. One number, and how much that is per day.', img: shotLight, alt: 'Tally safe-to-spend card' },
-    { icon: Plus, t: 'Quick add', d: 'Three taps: pick what it was, type the amount, done. Double taps are ignored, and look-alike entries are flagged.', img: shotPhone, alt: 'Tally on a phone', tall: true },
-    { icon: Bot, t: 'Ask Tally', d: 'Questions about your money answered in plain words, from your own dashboard.', img: devices, alt: 'Someone using a phone and laptop together' },
-    { icon: Target, t: 'Goals', d: 'Savings jars that fill as you add money, with the monthly amount needed and when you will get there.', img: shotGoals, alt: 'Tally goals screen with savings jars' },
-    { icon: Plane, t: 'Trips', d: 'Give a holiday a budget, tag what you spend, see it per day and who paid. It still counts in your normal month.', img: shotTrips, alt: 'Tally trips screen' },
+    { icon: ShieldCheck, t: 'Safe to spend', d: 'Money in, minus spending, savings and the bills still to come. One number, and how much that is per day.', img: shotLight, alt: 'SpendCop safe-to-spend card' },
+    { icon: Plus, t: 'Quick add', d: 'Three taps: pick what it was, type the amount, done. Double taps are ignored, and look-alike entries are flagged.', img: shotPhone, alt: 'SpendCop on a phone', tall: true },
+    { icon: Bot, t: 'Ask SpendCop', d: 'Questions about your money answered in plain words, from your own dashboard.', img: devices, alt: 'Someone using a phone and laptop together' },
+    { icon: Target, t: 'Goals', d: 'Savings jars that fill as you add money, with the monthly amount needed and when you will get there.', img: shotGoals, alt: 'SpendCop goals screen with savings jars' },
+    { icon: Plane, t: 'Trips', d: 'Give a holiday a budget, tag what you spend, see it per day and who paid. It still counts in your normal month.', img: shotTrips, alt: 'SpendCop trips screen' },
     { icon: Users, t: 'Household', d: 'Up to six people: who brings money in, who spends on what, and how the family is doing together.', img: family, alt: 'A family watching the sunset on a beach' },
     { icon: Scale, t: 'Debts', d: 'Cheapest-first, quickest wins or your own order. See your debt-free date and the interest you save.', img: coins, alt: 'Stacks of coins growing' },
   ]
@@ -518,7 +518,7 @@ function Modules() {
   const x = mods[i]
   return (
     <Section id="features">
-      <Head eyebrow="Features" title="Everything in one calm place" sub="Tally isn't just an expense list. Each part feeds the next, so your money has a job from payday to goal." />
+      <Head eyebrow="Features" title="Everything in one calm place" sub="SpendCop isn't just an expense list. Each part feeds the next, so your money has a job from payday to goal." />
       <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
         <div className="grid grid-cols-2 content-start gap-3 self-start sm:grid-cols-5" role="tablist" aria-label="Features">
           {mods.map((y, n) => (
@@ -539,7 +539,7 @@ function Modules() {
                 <h3 className="text-[22px] font-extrabold">{x.t}</h3>
                 <p className="font-mono text-[12px] text-accent">Part {i + 1} of {mods.length}</p>
                 <p className="mt-2 text-[15px] leading-relaxed text-ink2">{x.d}</p>
-                <p className="mt-4 flex items-center gap-1.5 border-t border-line pt-4 text-[13px] font-semibold text-good"><CheckCircle2 size={15} />Connected to the rest of Tally</p>
+                <p className="mt-4 flex items-center gap-1.5 border-t border-line pt-4 text-[13px] font-semibold text-good"><CheckCircle2 size={15} />Connected to the rest of SpendCop</p>
               </div>
             </Panel>
           </motion.div>
@@ -551,12 +551,12 @@ function Modules() {
 
 function FeatureChips({ jump }: { jump: (id: string) => void }) {
   const chips: [typeof Check, string, string, string, string, string][] = [
-    [Sparkles, 'Smart tips', 'From your own numbers', 'var(--warn)', 'Tally spots things like a category running higher than usual or a subscription you could cancel, and tells you in one sentence.', 'features'],
+    [Sparkles, 'Smart tips', 'From your own numbers', 'var(--warn)', 'SpendCop spots things like a category running higher than usual or a subscription you could cancel, and tells you in one sentence.', 'features'],
     [WifiOff, 'Works offline', 'Always available', 'var(--accent)', 'Add entries on a plane or in a basement shop. Nothing waits for the internet.', 'privacy'],
     [Lock, 'Private', 'No ads, no tracking', 'var(--good)', 'No adverts, no selling data and no analytics on your money. Without an account, nothing leaves your device.', 'privacy'],
     [Bell, 'Bills coming up', 'Next two weeks', 'var(--accent)', 'Home lists every bill due in the next two weeks, so nothing catches you out. Tick them off as they are paid.', 'journey'],
-    [FileUp, 'Bank CSV import', 'Checked before saving', 'var(--accent)', 'Import your bank\'s CSV file. Tally previews it first, flags possible duplicates and unreadable rows, and only saves when you say so.', 'features'],
-    [Cloud, 'Cloud sync', 'Optional, your account', 'var(--good)', 'Log in to keep your phone and laptop in step. If both change, Tally asks which copy to keep, and never silently throws one away.', 'faq'],
+    [FileUp, 'Bank CSV import', 'Checked before saving', 'var(--accent)', 'Import your bank\'s CSV file. SpendCop previews it first, flags possible duplicates and unreadable rows, and only saves when you say so.', 'features'],
+    [Cloud, 'Cloud sync', 'Optional, your account', 'var(--good)', 'Log in to keep your phone and laptop in step. If both change, SpendCop asks which copy to keep, and never silently throws one away.', 'faq'],
   ]
   const [open, setOpen] = useState<number | null>(null)
   return (
@@ -593,7 +593,7 @@ function Cascade({ m }: { m: Money }) {
     <Section id="cascade">
       <div className="grid items-start gap-12 lg:grid-cols-2">
         <div>
-          <Head center={false} title="Watch every payday find its place" sub="Tally helps you give every bit of your pay a job, so nothing is left to drift. Move the slider and adjust each share until the last line reaches zero." />
+          <Head center={false} title="Watch every payday find its place" sub="SpendCop helps you give every bit of your pay a job, so nothing is left to drift. Move the slider and adjust each share until the last line reaches zero." />
           <Reveal><div className="relative aspect-[4/3] overflow-hidden rounded-[24px] border border-line shadow-card"><Photo src={growth} alt="A small plant growing out of a pile of coins" /></div></Reveal>
         </div>
         <div>
@@ -720,9 +720,9 @@ function Habits() {
 function Privacy() {
   const cards: [typeof Check, string, string, string][] = [
     [WifiOff, 'Works anywhere', 'Everything runs in your browser and keeps working offline.', 'Your data is saved in this browser\'s own storage the moment you add it. If you\'re signed in, changes queue up and sync when you\'re back online.'],
-    [Lock, 'Private by default', 'Without an account, your data never leaves this device.', 'With an account, your copy lives in a private database row protected by row-level security, so only your login can read it. Data saved in the browser isn\'t encrypted by Tally, so keep your device locked.'],
-    [ShieldCheck, 'No ads, no tracking', 'No bank logins, no selling data, no analytics on your money.', 'Tally never connects to your bank. Ask Tally only sends a summary of your dashboard when you ask a question, and you can turn it off or see exactly what is sent.'],
-    [FileSpreadsheet, 'Take it with you', 'CSV, Excel or a full backup, whenever you like.', 'Settings → Back up & export gives you a CSV for spreadsheets, an Excel workbook with every part of Tally, and a full backup you can restore on any device.'],
+    [Lock, 'Private by default', 'Without an account, your data never leaves this device.', 'With an account, your copy lives in a private database row protected by row-level security, so only your login can read it. Data saved in the browser isn\'t encrypted by SpendCop, so keep your device locked.'],
+    [ShieldCheck, 'No ads, no tracking', 'No bank logins, no selling data, no analytics on your money.', 'SpendCop never connects to your bank. Ask SpendCop only sends a summary of your dashboard when you ask a question, and you can turn it off or see exactly what is sent.'],
+    [FileSpreadsheet, 'Take it with you', 'CSV, Excel or a full backup, whenever you like.', 'Settings → Back up & export gives you a CSV for spreadsheets, an Excel workbook with every part of SpendCop, and a full backup you can restore on any device.'],
   ]
   const [open, setOpen] = useState<number | null>(null)
   return (
@@ -749,12 +749,12 @@ function Privacy() {
 }
 
 const FAQS: [string, string][] = [
-  ['Do I need an account?', 'No. You can use everything in Tally without one, and your data stays in this browser. Create an account if you want your money on more than one device, or to use Ask Tally through your account.'],
-  ['Is my data private?', 'Without an account, nothing leaves your device. With an account, your data is kept in a private database row that only your login can read. Tally never asks for your bank login and shows no ads.'],
-  ['Does it work without internet?', 'Yes. Tally works fully offline. If you\'re signed in, changes sync the next time you\'re online, and if two devices both changed something, Tally asks which copy to keep.'],
-  ['Can I take my data out?', 'Any time: CSV for spreadsheets, an Excel workbook with every part of Tally, or a full backup you can restore later.'],
-  ['How does Ask Tally work?', 'Common questions, like "Can I afford this?", "Why is my score low?" or "Where can I cut back?", are answered instantly on your device from your own numbers, and nothing is sent anywhere. When you\'re logged in, Tally AI answers any other question from a summary of your dashboard, and you can see exactly what it reads or switch it off.'],
-  ['Is it free?', 'Yes. Tally, its instant answers, Tally AI and accounts are all free to use.'],
+  ['Do I need an account?', 'No. You can use everything in SpendCop without one, and your data stays in this browser. Create an account if you want your money on more than one device, or to use Ask SpendCop through your account.'],
+  ['Is my data private?', 'Without an account, nothing leaves your device. With an account, your data is kept in a private database row that only your login can read. SpendCop never asks for your bank login and shows no ads.'],
+  ['Does it work without internet?', 'Yes. SpendCop works fully offline. If you\'re signed in, changes sync the next time you\'re online, and if two devices both changed something, SpendCop asks which copy to keep.'],
+  ['Can I take my data out?', 'Any time: CSV for spreadsheets, an Excel workbook with every part of SpendCop, or a full backup you can restore later.'],
+  ['How does Ask SpendCop work?', 'Common questions, like "Can I afford this?", "Why is my score low?" or "Where can I cut back?", are answered instantly on your device from your own numbers, and nothing is sent anywhere. When you\'re logged in, SpendCop AI answers any other question from a summary of your dashboard, and you can see exactly what it reads or switch it off.'],
+  ['Is it free?', 'Yes. SpendCop, its instant answers, SpendCop AI and accounts are all free to use.'],
 ]
 function Faq() {
   const [open, setOpen] = useState(0)
@@ -803,14 +803,14 @@ function Footer({ onLogin, onStart, jump }: { onLogin: () => void; onStart: () =
     <footer className="border-t border-line px-4 py-12 sm:px-6">
       <div className="mx-auto grid max-w-6xl gap-8 sm:grid-cols-[1.5fr_1fr_1fr]">
         <div>
-          <p className="flex items-center gap-2.5 font-display text-[20px] font-extrabold"><span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-accent-ink"><Wallet size={16} /></span>Tally</p>
+          <p className="flex items-center gap-2.5 font-display text-[20px] font-extrabold"><span className="grid h-8 w-8 place-items-center rounded-lg bg-accent text-accent-ink"><Wallet size={16} /></span>SpendCop</p>
           <p className="mt-3 max-w-sm text-[14px] text-ink2">A private, friendly money companion for you and your family. Built for clarity, speed and peace of mind.</p>
         </div>
-        <div><p className="mb-3 text-[12px] font-bold uppercase tracking-wider text-muted">Product</p><ul className="space-y-2"><li><button type="button" className={link} onClick={onLogin}>Log in</button></li><li><button type="button" className={link} onClick={onStart}>Create account</button></li><li><button type="button" className={link} onClick={() => jump('features')}>Features</button></li><li><button type="button" className={link} onClick={() => jump('ai')}>Ask Tally</button></li></ul></div>
-        <div><p className="mb-3 text-[12px] font-bold uppercase tracking-wider text-muted">Help</p><ul className="space-y-2"><li><button type="button" className={link} onClick={() => jump('privacy')}>Privacy</button></li><li><button type="button" className={link} onClick={() => jump('faq')}>FAQ</button></li><li><button type="button" className={link} onClick={() => jump('journey')}>How it works</button></li></ul></div>
+        <div><p className="mb-3 text-[12px] font-bold uppercase tracking-wider text-muted">Product</p><ul className="space-y-2"><li><button type="button" className={link} onClick={onLogin}>Log in</button></li><li><button type="button" className={link} onClick={onStart}>Create account</button></li><li><button type="button" className={link} onClick={() => jump('features')}>Features</button></li><li><button type="button" className={link} onClick={() => jump('ai')}>Ask SpendCop</button></li></ul></div>
+        <div><p className="mb-3 text-[12px] font-bold uppercase tracking-wider text-muted">Help</p><ul className="space-y-2"><li><button type="button" className={link} onClick={() => jump('privacy')}>Privacy at a glance</button></li><li><button type="button" className={link} onClick={() => jump('faq')}>FAQ</button></li><li><button type="button" className={link} onClick={() => jump('journey')}>How it works</button></li><li><button type="button" className={link} onClick={() => useLegal.getState().open('privacy')}>Privacy policy</button></li><li><button type="button" className={link} onClick={() => useLegal.getState().open('terms')}>Terms & conditions</button></li></ul></div>
       </div>
       <div className="mx-auto mt-10 flex max-w-6xl flex-wrap justify-between gap-2 border-t border-line pt-6 text-[12.5px] text-muted">
-        <span>© 2026 Tally. A private personal and family finance tool.</span>
+        <span>© {new Date().getFullYear()} SpendCop. A private personal and family finance tool. Not a bank and not financial advice.</span>
         <span>Photos from Unsplash · App images show example data</span>
       </div>
     </footer>
