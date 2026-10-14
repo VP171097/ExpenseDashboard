@@ -31,6 +31,7 @@ Without any setup, Tally runs fully on the device and the landing page's "Log in
    supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
    # optional: supabase secrets set TALLY_AI_MODEL=claude-haiku-5-5   (default claude-opus-5-5)
    ```
+   No command line? In the Supabase dashboard go to **Edge Functions → Deploy a new function → Via editor**, name it `ask-tally`, paste all of `supabase/dashboard/ask-tally.ts` (the same function in one file), and deploy. Then add `ANTHROPIC_API_KEY` under **Edge Functions → Secrets**.
    The function only answers signed-in users of your project, keeps the key on the server, and logs nothing about the question. Without it, people can still use Ask Tally with their own Anthropic API key, kept only in their browser.
 
 **How sync behaves.** Changes save on the device first and upload a few seconds later (or when the app is hidden or comes back online). If two devices both changed, Tally asks which copy to keep and sets the other aside on that device, where Settings can bring it back. Example data is never uploaded. The cloud copy is protected by row-level security but is not end-to-end encrypted.
