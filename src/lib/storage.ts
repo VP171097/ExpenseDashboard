@@ -96,6 +96,18 @@ export const localFirstStorage = {
   },
 }
 
+/** Keep an extra copy under its own key (e.g. data set aside during a sync choice). */
+export async function keepCopy(key: string, value: unknown) {
+  const text = JSON.stringify({ savedAt: new Date().toISOString(), value })
+  try { await tx('readwrite', (s) => s.put(text, key)) } catch { try { ls.set(key, text) } catch { /* nothing more we can do */ } }
+}
+export async function readCopy<T>(key: string): Promise<{ savedAt: string; value: T } | null> {
+  let text: string | null = null
+  try { const v = await tx<string | undefined>('readonly', (s) => s.get(key) as IDBRequest<string | undefined>); if (v != null) text = v } catch { /* fall back */ }
+  text ??= ls.get(key)
+  try { return text ? JSON.parse(text) : null } catch { return null }
+}
+
 /** Ask the browser not to evict our data under storage pressure (best effort). */
 export async function askPersistent() {
   try { return (await navigator.storage?.persist?.()) ?? false } catch { return false }

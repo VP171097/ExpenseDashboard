@@ -8,6 +8,8 @@ import { addDays, addMonthsDate, iso, NOW, pad, parse, THIS_MONTH, TODAY } from 
 import { CURRENCIES, money0, setCurrency } from '../lib/money'
 import { baseCategories, emptyState, sampleState, seedHistory } from '../lib/sample'
 import { replaceData } from '../lib/store'
+import { useEntry } from '../lib/entry'
+import { useAuth } from '../lib/cloud/auth'
 import type { Freq, State } from '../lib/types'
 
 const BILLS: { key: string; name: string; cat: string; hint: number }[] = [
@@ -26,6 +28,9 @@ const EVERYDAY: [string, number][] = [['groceries', 0.32], ['dining', 0.1], ['tr
 const PER: Record<string, number> = { monthly: 1, biweekly: 26 / 12, weekly: 52 / 12 }
 
 export default function Onboarding() {
+  const signedIn = useAuth((a) => a.status === 'signed-in')
+  const email = useAuth((a) => a.user?.email)
+  const cloudOn = useAuth((a) => a.status !== 'off')
   const [step, setStep] = useState(0)
   const [dir, setDir] = useState(1)
   const [name, setName] = useState('')
@@ -101,6 +106,7 @@ export default function Onboarding() {
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center px-4 py-8" style={{ background: 'radial-gradient(90% 70% at 50% 0%, color-mix(in srgb, var(--accent) 16%, var(--bg)), var(--bg))' }}>
+      {step === 0 && !signedIn && <button type="button" onClick={() => useEntry.getState().go('landing')} className="mb-4 inline-flex items-center gap-1.5 self-center text-[14px] font-semibold text-ink2 hover:text-ink"><ArrowLeft size={16} />Back to the home page</button>}
       <div className="mb-6 flex items-center gap-2.5 font-display text-[26px] font-extrabold">
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-cover text-cover-ink"><Wallet size={20} /></span>Tally
       </div>
@@ -129,7 +135,9 @@ export default function Onboarding() {
                   <Button variant="primary" size="lg" onClick={next}>Set up my money (2 minutes) <ArrowRight size={18} /></Button>
                   <Button variant="ghost" size="lg" onClick={example}><Sparkles size={18} />Just look around with example data</Button>
                 </div>
-                <p className="text-center text-[12.5px] text-muted">Everything stays on this device. No sign-up, no bank login.</p>
+                {signedIn
+                  ? <p className="text-center text-[12.5px] text-muted">Signed in as {email}. What you set up here is saved to your account.</p>
+                  : <p className="text-center text-[12.5px] text-muted">Everything stays on this device. No sign-up, no bank login.{cloudOn && <> Have an account? <button type="button" className="font-semibold text-accent" onClick={() => useEntry.getState().go('auth', 'login')}>Log in</button></>}</p>}
               </div>
             )}
             {step === 1 && (

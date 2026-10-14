@@ -9,6 +9,9 @@ import { CURRENCIES, money0 } from '../lib/money'
 import { emptyState, sampleState, seedHistory } from '../lib/sample'
 import { replaceData, toast, update, useData, useUI } from '../lib/store'
 import type { Settings as S } from '../lib/types'
+import { AccountCard, AiCard } from '../components/CloudSettings'
+import { useAuth } from '../lib/cloud/auth'
+import { useAi } from '../lib/ai/ask'
 
 export default function Settings() {
   const s = useData()
@@ -18,8 +21,12 @@ export default function Settings() {
   const go = useUI((u) => u.go)
   const [people, setPeople] = useState(s.people.join(', '))
   const set = (fn: (x: S) => void) => update((d) => fn(d.settings))
+  const signedIn = useAuth((a) => a.status === 'signed-in')
+  const aiOn = useAi((a) => a.mode !== 'off')
   return (
     <div className="grid grid-cols-12 gap-4 lg:gap-5">
+      <AccountCard />
+      <AiCard />
       <Card className="col-span-12 lg:col-span-6">
         <CardHead title="You" />
         <div className="grid gap-4 sm:grid-cols-2">
@@ -78,7 +85,7 @@ export default function Settings() {
       </Card>
 
       <Card i={3} className="col-span-12 lg:col-span-6">
-        <CardHead title="Your data" sub="Everything stays in this browser on this device. Nothing is sent anywhere." />
+        <CardHead title="Your data" sub={signedIn ? 'Saved in this browser and synced to your account.' : aiOn ? 'Saved in this browser. Ask Tally sends a summary only when you ask.' : 'Everything stays in this browser on this device. Nothing is sent anywhere.'} />
         <div className="mb-4 rounded-2xl bg-surface2 p-3.5 text-[13.5px] leading-relaxed text-ink2">
           <p>Tally keeps your data in this browser's own storage. It is <b className="text-ink">private but not encrypted</b>, and it can be lost if you clear your browsing data, use a private window, or lose this device. Download a full backup now and then.</p>
           <p className="mt-1.5 font-semibold text-ink">{s.settings.lastBackup ? `Last backup: ${new Date(s.settings.lastBackup).toLocaleDateString()}` : 'No backup downloaded yet.'}{est ? ` · Using ${(est.used / 1048576).toFixed(1)} MB of storage` : ''}</p>

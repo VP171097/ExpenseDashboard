@@ -18,6 +18,8 @@ export default defineConfig(({ mode }) => ({
           if (!id.includes('node_modules')) return
           if (/three|@react-three/.test(id)) return 'three'
           if (/xlsx/.test(id)) return 'xlsx'
+          if (/@supabase/.test(id)) return 'supabase'
+          if (/@anthropic-ai/.test(id)) return 'anthropic'
           if (/recharts|d3-|victory/.test(id)) return 'charts'
           if (/framer-motion|react-dom|react\//.test(id)) return 'vendor'
         },

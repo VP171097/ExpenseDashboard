@@ -11,7 +11,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.133.0",
     "@react-three/fiber": "8.17.10",
+    "@supabase/supabase-js": "^2.117.3",
     "canvas-confetti": "1.9.3",
     "framer-motion": "11.11.17",
     "immer": "10.1.1",

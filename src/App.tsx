@@ -1,6 +1,6 @@
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import {
-  Banknote, BarChart3, CalendarClock, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Plane, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check,
+  Banknote, BarChart3, Bot, CalendarClock, Cloud, CloudOff, LogIn, RefreshCw, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Plane, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, type ComponentType } from 'react'
 import Sheets from './components/Sheets'
@@ -8,6 +8,11 @@ import { Button } from './components/ui'
 import { monthName, THIS_MONTH } from './lib/dates'
 import { setCurrency } from './lib/money'
 import { replaceData, update, useStore, useToasts, useUI, type View } from './lib/store'
+import AskTally, { openAsk } from './components/AskTally'
+import { initAuth, useAuth } from './lib/cloud/auth'
+import { resolveConflict, useSync, watchAccount } from './lib/cloud/sync'
+import type { SyncState } from './lib/cloud/engine'
+import { useEntry } from './lib/entry'
 import Home from './screens/Home'
 import Onboarding from './screens/Onboarding'
 import Tour from './components/Tour'
@@ -26,6 +31,8 @@ const Household = lazy(() => import('./screens/Household'))
 const Paycheck = lazy(() => import('./screens/Paycheck'))
 const Year = lazy(() => import('./screens/Year'))
 const Trips = lazy(() => import('./screens/Trips'))
+const Landing = lazy(() => import('./screens/Landing'))
+const Auth = lazy(() => import('./screens/Auth'))
 // warm the other screens once the dashboard is showing
 const preload = () => ['Activity', 'Bills', 'Plan', 'Calendar', 'Goals'].forEach((n) => import(`./screens/${n}.tsx`).catch(() => {}))
 
@@ -68,11 +75,24 @@ export default function App() {
     else delete r.dataset.effects
     try { localStorage.setItem('tally.effects', effects) } catch { /* ignore */ }
   }, [effects])
+  useEffect(() => { void initAuth(); watchAccount() }, [])
+  const entry = useEntry((e) => e.screen)
+  const auth = useAuth()
+  const checked = useSync((x) => x.checked)
   if (data) setCurrency(data.settings.currency)
-  if (!hydrated) return <div className="grid min-h-screen place-items-center text-[15px] font-semibold text-muted">Loading your money…</div>
+  const loading = <div className="grid min-h-screen place-items-center text-[15px] font-semibold text-muted">Loading your money…</div>
+  if (!hydrated) return loading
+  // the front door: landing page, log in, or first-time setup; the app once there is data
+  let screen
+  if (auth.recovering) screen = <Auth reset />
+  else if (entry === 'auth' && auth.status !== 'signed-in') screen = <Auth />
+  else if (data) screen = <Shell />
+  else if (auth.status === 'loading' || (auth.status === 'signed-in' && !checked)) screen = loading
+  else if (entry === 'setup' || auth.status === 'signed-in') screen = <Onboarding />
+  else screen = <Landing />
   return (
     <MotionConfig reducedMotion={effects === 'reduced' ? 'always' : 'user'}>
-      {data ? <Shell /> : <Onboarding />}
+      <Suspense fallback={loading}>{screen}</Suspense>
       <Toaster />
     </MotionConfig>
   )
@@ -118,6 +138,8 @@ function Shell() {
       <TabBar />
       <Sheets />
       <Tour />
+      <AskTally />
+      <SyncConflict />
     </div>
   )
 }
@@ -147,7 +169,9 @@ function Sidebar() {
           )
         })}
       </nav>
+      <AccountChip />
       <div className="flex flex-col gap-1">
+        <button type="button" onClick={() => openAsk()} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><Bot size={18} />Ask Tally</button>
         <button type="button" data-tour="help" onClick={() => open({ type: 'help' })} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><HelpCircle size={18} />Help & simple answers</button>
         <button type="button" onClick={() => { go('home'); setTimeout(() => useUI.getState().setTour(true), 300) }} className="flex items-center gap-3 rounded-xl px-3 py-2 font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink"><Compass size={18} />Take the tour</button>
       </div>
@@ -177,6 +201,7 @@ function TopBar() {
           {month !== THIS_MONTH && <button type="button" onClick={() => setMonth(THIS_MONTH)} className="ml-1 rounded-xl px-2.5 py-1.5 text-[13px] font-semibold text-accent hover:bg-accent-soft">Today</button>}
         </div>
       )}
+      <button type="button" onClick={() => openAsk()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface px-3 font-semibold text-ink shadow-card hover:border-accent" aria-label="Ask Tally"><Bot size={18} className="text-accent" /><span className="hidden sm:inline">Ask Tally</span></button>
       <ThemeToggle />
       <span data-tour="help" className="lg:hidden"><Button variant="ghost" onClick={() => open({ type: 'help' })} ariaLabel="Help"><HelpCircle size={18} /><span className="hidden sm:inline">Help</span></Button></span>
     </header>
@@ -190,7 +215,7 @@ function SampleBanner() {
       <div className="mb-5 flex flex-wrap items-center gap-3 rounded-2xl border border-[color-mix(in_srgb,var(--accent)_30%,transparent)] bg-accent-soft px-4 py-3">
         <Sparkles size={18} className="shrink-0 text-accent" />
         <p className="min-w-[200px] flex-1 text-[14.5px]">You're looking at <b>example data</b> for Alex and Sam. Tap around, nothing can break. When you're ready, set up your own.</p>
-        <Button size="sm" variant="primary" onClick={() => open({ type: 'confirm', title: 'Set up your own money?', text: 'The example data will be cleared and you will go through a short setup.', label: 'Start setup', run: () => replaceData(null) })}>Use my own money</Button>
+        <Button size="sm" variant="primary" onClick={() => open({ type: 'confirm', title: 'Set up your own money?', text: 'The example data will be cleared and you will go through a short setup.', label: 'Start setup', run: () => { replaceData(null); useEntry.getState().go('setup') } })}>Use my own money</Button>
         <Button size="sm" variant="ghost" onClick={() => update((d) => { d.sample = false })}>Hide</Button>
       </div>
     </motion.div>
@@ -278,6 +303,53 @@ function SaveWarning() {
       <AlertTriangle size={18} className="shrink-0 text-bad" />
       <p className="flex-1">{err} New changes can't be stored right now. Download a backup so nothing is lost, then free up space in your browser.</p>
       <Button size="sm" variant="danger" onClick={() => go('settings')}>Back up now</Button>
+    </div>
+  )
+}
+
+/* ---------- account and sync ---------- */
+const SYNC_WORD: Record<SyncState['kind'], string> = { idle: 'Signed in', syncing: 'Syncing…', synced: 'Synced', sample: 'Example data is not synced', offline: 'Offline · will sync later', error: 'Sync problem', conflict: 'Needs your choice' }
+function AccountChip() {
+  const auth = useAuth()
+  const sync = useSync((x) => x.state)
+  const { go } = useUI()
+  if (auth.status === 'off' || auth.status === 'loading') return null
+  if (auth.status !== 'signed-in') return (
+    <button type="button" onClick={() => useEntry.getState().go('auth', 'login')} className="flex items-center gap-3 rounded-xl border border-cover-hi px-3 py-2.5 text-left font-semibold text-cover-muted hover:bg-cover-hi hover:text-cover-ink">
+      <LogIn size={18} /><span className="flex-1"><span className="block text-[14px]">Log in to sync</span><span className="block text-[11.5px] font-medium opacity-75">Back up and use on any device</span></span>
+    </button>
+  )
+  const bad = sync.kind === 'error' || sync.kind === 'conflict'
+  return (
+    <button type="button" onClick={() => go('settings')} className="flex items-center gap-3 rounded-xl bg-cover-hi px-3 py-2.5 text-left text-cover-ink" title="Account and sync">
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-cover-ink font-bold text-cover">{(auth.user?.name || auth.user?.email || '?').slice(0, 1).toUpperCase()}</span>
+      <span className="min-w-0 flex-1"><span className="block truncate text-[13.5px] font-semibold">{auth.user?.name || auth.user?.email}</span>
+        <span className={`flex items-center gap-1 text-[11.5px] ${bad ? 'text-[#ff9b9b]' : 'text-cover-muted'}`}>{sync.kind === 'offline' ? <CloudOff size={12} /> : sync.kind === 'syncing' ? <RefreshCw size={12} className="animate-spin" /> : <Cloud size={12} />}{SYNC_WORD[sync.kind]}</span></span>
+    </button>
+  )
+}
+
+/** When this device and the cloud both changed, ask which copy to keep. Nothing is thrown away. */
+function SyncConflict() {
+  const sync = useSync((x) => x.state)
+  const local = useStore((s) => s.data)
+  if (sync.kind !== 'conflict' || !local) return null
+  const r = sync.remote
+  const when = r.updated_at ? new Date(r.updated_at).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : ''
+  return (
+    <div className="fixed inset-0 z-[80] grid place-items-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="conflict-title">
+      <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} className="w-full max-w-lg rounded-[24px] border border-line bg-surface p-6 shadow-pop">
+        <h2 id="conflict-title" className="text-[21px] font-extrabold">Which copy should Tally keep?</h2>
+        <p className="mt-1.5 text-[14.5px] text-ink2">Your account has changes from another device, and this device has changes too. Pick the one to keep. The other is set aside on this device, and you can bring it back from Settings.</p>
+        <div className="mt-5 grid gap-3 sm:grid-cols-2">
+          <button type="button" onClick={() => resolveConflict('device')} className="rounded-2xl border border-line p-4 text-left hover:border-accent">
+            <b className="block">This device</b><span className="text-[13px] text-ink2">{local.tx.length.toLocaleString()} entries · {local.goals.length} goals</span>
+          </button>
+          <button type="button" onClick={() => resolveConflict('cloud')} className="rounded-2xl border border-line p-4 text-left hover:border-accent">
+            <b className="block">My account</b><span className="text-[13px] text-ink2">{r.data.tx?.length?.toLocaleString() ?? 0} entries · {r.data.goals?.length ?? 0} goals{r.device ? ` · from ${r.device}` : ''}{when ? ` · ${when}` : ''}</span>
+          </button>
+        </div>
+      </motion.div>
     </div>
   )
 }
