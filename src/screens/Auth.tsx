@@ -10,7 +10,6 @@ import shot from '../assets/landing/app-desktop-dark.webp'
 import { checkCloudConfig, cloudConfig, saveCloudConfig } from '../lib/cloud/client'
 import { authOptions, google, logIn, restartAuth, sendReset, setNewPassword, signUp } from '../lib/cloud/auth'
 import { useEntry, type AuthMode } from '../lib/entry'
-import { useClaudeAi } from '../lib/ai/ask'
 
 type Mode = AuthMode | 'reset' | 'sent' | 'confirm'
 
@@ -25,7 +24,8 @@ export default function Auth({ reset = false }: { reset?: boolean }) {
   const [err, setErr] = useState('')
   const [cloudOn, setCloudOn] = useState(() => !!cloudConfig())
   const [hasGoogle, setHasGoogle] = useState(false)
-  const inClaude = useClaudeAi((c) => c.available)
+  // inside the claude.ai viewer the page is framed and can't reach other websites
+  const inClaude = typeof window !== 'undefined' && window.top !== window && !!(window as unknown as { claude?: { use?: unknown } }).claude?.use
   useEffect(() => { void authOptions().then((o) => setHasGoogle(!!o?.google)) }, [cloudOn])
   const back = () => entry.go('landing')
   const local = () => entry.go('setup')

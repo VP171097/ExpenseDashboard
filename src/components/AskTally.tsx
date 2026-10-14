@@ -1,25 +1,23 @@
 /**
  * Ask Tally: questions about your own money in plain words.
  *
- * Common questions are answered instantly on this device by Tally's built-in answers (free,
- * private, offline). Anything else goes to the AI you connect in Settings, if any: Claude on
- * your claude.ai account, Google Gemini's free tier, your Tally account, or your own Claude key.
+ * Common questions are answered instantly on this device by Tally's built-in answers (private,
+ * offline). Anything else goes to Tally AI through the person's account, when they are logged in.
  */
 import { AnimatePresence, motion } from 'framer-motion'
-import { Bot, Gauge, KeyRound, RefreshCw, Send, ShieldCheck, Sparkles, Square, X, Zap } from 'lucide-react'
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Bot, Gauge, LogIn, RefreshCw, Send, Sparkles, Square, X, Zap } from 'lucide-react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { create } from 'zustand'
-import { AI_NAME, aiReady, ask, setAi, useAi, useClaudeAi, type AiMode, type Turn } from '../lib/ai/ask'
+import { aiReady, ask, useAi, type Turn } from '../lib/ai/ask'
 import { contextText } from '../lib/ai/context'
 import { answerLocally, QUICK_EXAMPLES } from '../lib/ai/quick'
 import { health, monthPicture, tripStats, currentTrip } from '../lib/calc'
 import { useAuth } from '../lib/cloud/auth'
-import { cloudConfig } from '../lib/cloud/client'
 import { THIS_MONTH } from '../lib/dates'
 import { money0 } from '../lib/money'
+import { useEntry } from '../lib/entry'
 import { useData } from '../lib/store'
 import type { State } from '../lib/types'
-import { Button } from './ui'
 
 /** local: answered on this device by the built-in answers. */
 interface Msg { role: 'user' | 'assistant'; text: string; error?: boolean; local?: boolean; hint?: boolean }
@@ -28,7 +26,7 @@ export const openAsk = (q?: string) => { useAsk.setState({ open: true }); if (q)
 
 let abort: AbortController | null = null
 let latestData: State | null = null
-const ready = () => aiReady(useAi.getState(), useAuth.getState().status === 'signed-in', useClaudeAi.getState().available)
+const ready = () => aiReady(useAi.getState(), useAuth.getState().status === 'signed-in')
 
 /** Ask: built-in answer first; the connected AI for anything else (or when asked for more). */
 async function send(q: string, forceAi = false) {
@@ -38,7 +36,8 @@ async function send(q: string, forceAi = false) {
   if (!forceAi) {
     const local = answerLocally(latestData, question)
     if (local || !ready()) {
-      const text = local?.text ?? `I can't answer that one on my own yet. Here are things I can answer instantly:\n\n${QUICK_EXAMPLES.map((x) => `- ${x}`).join('\n')}\n\nFor any other question, connect an AI below or in Settings → Ask Tally.`
+      const cta = useAuth.getState().status === 'off' ? '' : useAi.getState().enabled ? '\n\nLog in to ask Tally AI anything else.' : '\n\nTurn on Tally AI in Settings to ask anything else.'
+      const text = local?.text ?? `I can't answer that one on my own yet. Here are things I can answer instantly:\n\n${QUICK_EXAMPLES.map((x) => `- ${x}`).join('\n')}${cta}`
       useAsk.setState({ msgs: [...s.msgs, { role: 'user', text: question }, { role: 'assistant', text, local: true, hint: !local }] })
       return
     }
@@ -87,13 +86,12 @@ function Panel() {
   const s = useData()
   latestData = s
   const ai = useAi()
-  const claudeAiOn = useClaudeAi((c) => c.available)
-  const signedIn = useAuth((a) => a.status === 'signed-in')
+  const authStatus = useAuth((a) => a.status)
+  const signedIn = authStatus === 'signed-in'
   const { msgs, busy } = useAsk()
   const [q, setQ] = useState('')
-  const [connect, setConnect] = useState(false)
   const end = useRef<HTMLDivElement>(null)
-  const aiOn = aiReady(ai, signedIn, claudeAiOn)
+  const aiOn = aiReady(ai, signedIn)
   useEffect(() => { end.current?.scrollIntoView({ block: 'end' }) }, [msgs])
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') useAsk.setState({ open: false }) }
@@ -120,7 +118,7 @@ function Panel() {
         <span className="grid h-10 w-10 place-items-center rounded-xl bg-accent-soft text-accent"><Bot size={20} /></span>
         <div className="min-w-0 flex-1">
           <h2 className="font-display text-[18px] font-extrabold">Ask Tally</h2>
-          <p className="truncate text-[12px] text-muted">Built-in answers{aiOn ? ` + ${AI_NAME[ai.mode]}` : ' · free and on this device'}</p>
+          <p className="truncate text-[12px] text-muted">{aiOn ? 'Instant answers + Tally AI' : 'Instant answers on this device'}</p>
         </div>
         {msgs.length > 0 && <button type="button" onClick={() => { abort?.abort(); useAsk.setState({ msgs: [] }) }} className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-ink" aria-label="New conversation" title="New conversation"><RefreshCw size={16} /></button>}
         <button type="button" onClick={() => useAsk.setState({ open: false })} className="grid h-9 w-9 place-items-center rounded-lg text-muted hover:bg-surface2 hover:text-ink" aria-label="Close"><X size={18} /></button>
@@ -154,17 +152,17 @@ function Panel() {
                 <div className={`min-w-0 flex-1 rounded-2xl rounded-tl-md border px-3.5 py-2.5 text-[14.5px] leading-relaxed ${m.error ? 'border-bad bg-bad-soft' : 'border-line bg-surface2/50'}`}>
                   {m.text ? <Rich text={m.text} /> : <span className="inline-flex gap-1 py-1" aria-label="Thinking">{[0, 1, 2].map((d) => <motion.i key={d} className="h-2 w-2 rounded-full bg-muted" animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity, delay: d * 0.15 }} />)}</span>}
                   {m.local && !m.hint && <p className="mt-2 flex flex-wrap items-center gap-x-2 border-t border-line pt-2 text-[11.5px] text-muted"><Zap size={11} />Instant answer, worked out on this device
-                    {aiOn && !busy && i === msgs.length - 1 && <button type="button" className="font-semibold text-accent" onClick={() => { const lastQ = msgs[i - 1]?.text; if (lastQ) { useAsk.setState({ msgs: msgs.slice(0, i - 1) }); setTimeout(() => send(lastQ, true), 0) } }}>Ask {ai.mode === 'gemini' ? 'Gemini' : 'Claude'} for more</button>}</p>}
+                    {aiOn && !busy && i === msgs.length - 1 && <button type="button" className="font-semibold text-accent" onClick={() => { const lastQ = msgs[i - 1]?.text; if (lastQ) { useAsk.setState({ msgs: msgs.slice(0, i - 1) }); setTimeout(() => send(lastQ, true), 0) } }}>Ask Tally AI for more</button>}</p>}
                   {m.error && <button type="button" className="mt-2 block text-[13px] font-semibold text-accent" onClick={() => { const lastQ = msgs[i - 1]?.text; useAsk.setState({ msgs: msgs.slice(0, i - 1) }); if (lastQ) setTimeout(() => send(lastQ, true), 0) }}>Try again</button>}
                 </div>
               </div>
             ))}
         </div>
-        {!aiOn && (
-          <div className="mt-5 rounded-2xl border border-dashed border-line2 p-4">
-            <button type="button" onClick={() => setConnect((v) => !v)} aria-expanded={connect} className="flex w-full items-center gap-2 text-left text-[14px] font-semibold"><Sparkles size={16} className="text-accent" /><span className="flex-1">Connect an AI for any question</span><span className="text-[12px] font-medium text-muted">{connect ? 'Hide' : 'Optional'}</span></button>
-            {connect && <div className="mt-3"><AiChoices compact /></div>}
-          </div>
+        {!aiOn && ai.enabled && (authStatus === 'signed-out' || authStatus === 'loading') && (
+          <button type="button" onClick={() => { useAsk.setState({ open: false }); useEntry.getState().go('auth', 'login') }} className="mt-5 flex w-full items-center gap-3 rounded-2xl border border-dashed border-line2 p-4 text-left hover:border-accent">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-accent-soft text-accent"><LogIn size={17} /></span>
+            <span><b className="block text-[14px]">Log in to ask anything</b><span className="text-[13px] text-ink2">Tally AI answers any other question about your money.</span></span>
+          </button>
         )}
         <div ref={end} />
       </div>
@@ -178,52 +176,9 @@ function Panel() {
             ? <button type="button" onClick={() => abort?.abort()} className="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-xl border border-line2" aria-label="Stop"><Square size={16} /></button>
             : <button type="submit" disabled={!q.trim()} className="grid h-[46px] w-[46px] shrink-0 place-items-center rounded-xl bg-accent text-accent-ink disabled:opacity-40" aria-label="Send"><Send size={18} /></button>}
         </form>
-        <p className="mt-2 text-[11.5px] text-muted">{aiOn ? `Common questions are answered on this device. Others go to ${AI_NAME[ai.mode]} with a summary of your dashboard. Double-check big decisions.` : 'Answered on this device from your own numbers. Nothing is sent anywhere.'}</p>
+        <p className="mt-2 text-[11.5px] text-muted">{aiOn ? 'Common questions are answered on this device. Others are answered by Tally AI (Google Gemini) from a summary of your dashboard. Double-check big decisions.' : 'Answered on this device from your own numbers. Nothing is sent anywhere.'}</p>
       </footer>
     </>
-  )
-}
-
-/** Choose which AI handles questions the built-in answers can't. Used here and in Settings. */
-export function AiChoices({ compact = false }: { compact?: boolean }) {
-  const ai = useAi()
-  const claudeAiOn = useClaudeAi((c) => c.available)
-  const auth = useAuth()
-  const [gk, setGk] = useState(ai.geminiKey)
-  const [ak, setAk] = useState(ai.key)
-  const cloud = !!cloudConfig()
-  const opt = (mode: AiMode, title: string, text: ReactNode, icon: ReactNode, extra?: ReactNode, disabled = false) => {
-    const on = ai.mode === mode
-    return (
-      <div key={mode} className={`rounded-2xl border p-3.5 ${on ? 'border-accent bg-accent-soft' : 'border-line'} ${disabled ? 'opacity-60' : ''}`}>
-        <button type="button" disabled={disabled} onClick={() => setAi({ mode })} aria-pressed={on} className="flex w-full items-start gap-3 text-left">
-          <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${on ? 'bg-accent text-accent-ink' : 'bg-surface2'}`}>{icon}</span>
-          <span className="min-w-0"><b className="block text-[14.5px]">{title}</b><span className="text-[13px] text-ink2">{text}</span></span>
-        </button>
-        {on && extra}
-      </div>
-    )
-  }
-  return (
-    <div className="flex flex-col gap-2.5">
-      {opt('off', 'Built-in answers only', 'Free, instant and private. Answers the common questions; nothing leaves this device.', <Zap size={17} />)}
-      {claudeAiOn && opt('claudeai', 'Claude on your claude.ai account', 'Free with your claude.ai plan, no key needed. Works while Tally is open inside claude.ai; you\'ll be asked once to allow it.', <Sparkles size={17} />)}
-      {opt('gemini', 'Google Gemini (free tier)', <>Free with a Gemini API key from <b>aistudio.google.com</b>. On the free tier, Google may use what you send to improve its products.</>, <Sparkles size={17} />,
-        <div className="mt-3 flex flex-col gap-2">
-          <div className="flex gap-2">
-            <input className="field flex-1 !py-2 text-[14px]" type="password" value={gk} onChange={(e) => setGk(e.target.value)} placeholder="Gemini API key (AIza…)" aria-label="Gemini API key" autoComplete="off" />
-            <Button size="sm" variant="primary" onClick={() => setAi({ geminiKey: gk.trim() })} disabled={!gk.trim() || gk.trim() === ai.geminiKey}>Save</Button>
-          </div>
-          <p className="text-[12px] text-muted">Kept only in this browser, never synced. {!compact && 'Tip: turn off "Include entry descriptions" below to share amounts and categories only.'}</p>
-          {ai.geminiKey && <button type="button" className="w-fit text-[12.5px] font-semibold text-bad" onClick={() => { setAi({ geminiKey: '' }); setGk('') }}>Remove key from this device</button>}
-        </div>)}
-      {opt('cloud', 'Your Tally account', !cloud ? 'Needs accounts switched on.' : auth.status !== 'signed-in' ? 'Log in to use this.' : 'Answered by the AI set up on your Tally server (Claude or Gemini). No key on this device.', <ShieldCheck size={17} />, undefined, !cloud || auth.status !== 'signed-in')}
-      {opt('key', 'Claude with your Anthropic API key', 'Paid by your Anthropic account. Kept only in this browser.', <KeyRound size={17} />,
-        <div className="mt-3 flex gap-2">
-          <input className="field flex-1 !py-2 text-[14px]" type="password" value={ak} onChange={(e) => setAk(e.target.value)} placeholder="sk-ant-…" aria-label="Anthropic API key" autoComplete="off" />
-          <Button size="sm" variant="primary" onClick={() => setAi({ key: ak.trim() })} disabled={!ak.trim().startsWith('sk-') || ak.trim() === ai.key}>Save</Button>
-        </div>)}
-    </div>
   )
 }
 

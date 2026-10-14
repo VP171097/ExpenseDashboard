@@ -10,7 +10,7 @@ import { useEntry } from '../lib/entry'
 import { readCopy } from '../lib/storage'
 import { replaceData, toast, useData, useStore, useUI } from '../lib/store'
 import type { State } from '../lib/types'
-import { AiChoices, openAsk } from './AskTally'
+import { openAsk } from './AskTally'
 import { Button, Card, CardHead, Field, Switch } from './ui'
 
 export function AccountCard() {
@@ -116,21 +116,27 @@ function ConnectProject({ compact = false }: { compact?: boolean }) {
 export function AiCard() {
   const s = useData()
   const ai = useAi()
+  const auth = useAuth((a) => a.status)
   const [peek, setPeek] = useState(false)
   const size = contextText(s, { notes: ai.notes }).length
   return (
     <Card i={1} className="col-span-12 lg:col-span-6">
       <CardHead title={<span className="flex items-center gap-2"><Bot size={18} className="text-accent" />Ask Tally</span>} sub="Plain-language answers about your own money" />
-      <p className="mb-4 rounded-2xl bg-accent-soft p-3.5 text-[14px]"><b>Built-in answers are always on.</b> Questions like "Can I afford this?", "Why is my score low?" or "Where can I cut back?" are answered instantly on this device, for free. Connect an AI below for any other question.</p>
-      <AiChoices />
-      <div className="mt-4 flex flex-col gap-3 text-[14px]">
+      <p className="mb-4 rounded-2xl bg-accent-soft p-3.5 text-[14px]"><b>Instant answers are always on.</b> Questions like "Can I afford this?", "Why is my score low?" or "Where can I cut back?" are answered straight away on this device.</p>
+      <div className="flex flex-col gap-3 text-[14px]">
         <div className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4">
-          <div><p className="font-semibold">Include entry descriptions</p><p className="text-[13px] text-ink2">Lets the AI see what recent entries were for (like "Coffee with Sam"). Turn off to share amounts and categories only.</p></div>
-          <Switch checked={ai.notes} label="Include entry descriptions" onChange={(v) => setAi({ notes: v })} />
+          <div><p className="font-semibold">Tally AI for other questions</p><p className="text-[13px] text-ink2">{auth === 'off' ? 'Needs accounts switched on.' : auth === 'signed-in' ? 'Questions the instant answers can\'t handle are answered by Tally AI (Google Gemini).' : 'Log in to use it. Questions the instant answers can\'t handle are answered by Tally AI (Google Gemini).'}</p></div>
+          <Switch checked={ai.enabled} label="Tally AI for other questions" onChange={(v) => setAi({ enabled: v })} />
         </div>
-        <p className="flex items-center gap-2 text-[13px] text-ink2"><ShieldCheck size={15} className="text-good" />{ai.mode === 'off' ? 'Nothing is sent to any AI.' : `Sent only when the built-in answers can't help: a summary of about ${Math.round(size / 1000)} KB. The AI can't change anything.`}</p>
-        <button type="button" onClick={() => setPeek((v) => !v)} className="w-fit text-[13.5px] font-semibold text-accent" aria-expanded={peek}>{peek ? 'Hide' : 'See exactly what would be shared'}</button>
-        {peek && <pre className="max-h-72 overflow-auto rounded-xl border border-line bg-surface2/60 p-3 text-[11px] leading-snug">{JSON.stringify(JSON.parse(contextText(s, { notes: ai.notes })), null, 2)}</pre>}
+        {ai.enabled && (
+          <div className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4">
+            <div><p className="font-semibold">Include entry descriptions</p><p className="text-[13px] text-ink2">Lets Tally AI see what recent entries were for (like "Coffee with Sam"). Turn off to share amounts and categories only.</p></div>
+            <Switch checked={ai.notes} label="Include entry descriptions" onChange={(v) => setAi({ notes: v })} />
+          </div>
+        )}
+        <p className="flex items-center gap-2 text-[13px] text-ink2"><ShieldCheck size={15} className="text-good" />{ai.enabled ? `Sent only for questions the instant answers can't handle: a summary of about ${Math.round(size / 1000)} KB. Tally AI can't change anything.` : 'Nothing is sent to any AI.'}</p>
+        {ai.enabled && <button type="button" onClick={() => setPeek((v) => !v)} className="w-fit text-[13.5px] font-semibold text-accent" aria-expanded={peek}>{peek ? 'Hide' : 'See exactly what would be shared'}</button>}
+        {peek && ai.enabled && <pre className="max-h-72 overflow-auto rounded-xl border border-line bg-surface2/60 p-3 text-[11px] leading-snug">{JSON.stringify(JSON.parse(contextText(s, { notes: ai.notes })), null, 2)}</pre>}
         <Button className="w-fit" onClick={() => openAsk()}><Bot size={16} />Open Ask Tally</Button>
       </div>
     </Card>

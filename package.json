@@ -12,7 +12,6 @@
     "dashboard-function": "node scripts/dashboard-function.mjs"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.133.0",
     "@google/genai": "^2.29.1",
     "@react-three/fiber": "8.17.10",
     "@supabase/supabase-js": "^2.117.3",
