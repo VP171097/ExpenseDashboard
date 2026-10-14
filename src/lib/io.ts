@@ -11,6 +11,15 @@ export function toCsv(s: State) {
     .join('\n')
 }
 
+/** Entries between two dates as CSV, including regular payments still due when asked. Starts with a BOM so Excel reads ₹, € and accents correctly. */
+export function toCsvRange(s: State, from: string, to: string, withDue = true) {
+  const rows = itemsIn(s, from, to).filter((t) => withDue || t.paid).sort((a, b) => a.date.localeCompare(b.date))
+  return '\ufeff' + ['Date,Description,Type,Category,Sub-category,Account,Person,Amount,Status,Trip']
+    .concat(rows.map((t) => [t.date, t.note, t.type === 'income' ? 'Money in' : t.type === 'savings' ? 'Put aside' : 'Money out', catName(s, t.cat), t.sub ?? '', accountName(s, t.account), t.person ?? '', t.type === 'income' ? t.amount : -t.amount,
+      t.paid ? (t.type === 'income' ? 'Arrived' : 'Paid') : t.type === 'income' ? 'Expected' : 'Due', tripOf(s, t.trip)?.name ?? ''].map(cell).join(',')))
+    .join('\r\n')
+}
+
 export function parseCsv(text: string) {
   const sep = !text.slice(0, 300).includes(',') && text.includes(';') ? ';' : ','
   const rows: string[][] = []

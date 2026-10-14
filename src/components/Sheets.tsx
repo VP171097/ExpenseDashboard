@@ -1,14 +1,14 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import {
-  ArrowLeft, Banknote, BarChart3, CalendarClock, CalendarDays, ChevronDown, Compass, Plane, Copy, Delete, Download, FileSpreadsheet, Goal, HelpCircle, Landmark, Repeat, Scale, Settings as Cog, Trash2, Upload, Users, Wallet,
+  ArrowLeft, Banknote, BarChart3, CalendarClock, CalendarDays, ChevronDown, Compass, Plane, Copy, Delete, Download, FileSpreadsheet, FileText, Goal, HelpCircle, Landmark, Repeat, Scale, Settings as Cog, Trash2, Upload, Users, Wallet,
 } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { catOf, cents, findDuplicate, FREQ, isPaid, monthsUntil, ruleKey, tripDays, uid } from '../lib/calc'
+import { catOf, cents, findDuplicate, FREQ, isPaid, itemsIn, monthsUntil, ruleKey, tripDays, uid } from '../lib/calc'
 import { saveFile, workbook } from '../lib/files'
 import { emiRule, emiStatus } from '../lib/emi'
-import { addDays, addMonthsDate, fmtDate, iso, NOW, THIS_MONTH, TODAY } from '../lib/dates'
+import { addDays, addMonthsDate, fmtDate, iso, monthEnd, monthName, NOW, THIS_MONTH, TODAY } from '../lib/dates'
 import { balances } from '../lib/calc'
-import { checkBackup, commitImport, prepareImport, toCsv, type ImportPlan } from '../lib/io'
+import { checkBackup, commitImport, prepareImport, toCsv, toCsvRange, type ImportPlan } from '../lib/io'
 import { money, money2, symbol } from '../lib/money'
 import { replaceData, toast, update, useData, useStore, useUI, type SheetSpec, type View } from '../lib/store'
 import type { Category, Emi, Freq, Kind, State } from '../lib/types'
@@ -31,12 +31,12 @@ export default function Sheets() {
     emi: spec?.type === 'emi' && spec.id ? 'Edit loan or EMI' : spec?.type === 'emi' && spec.kind === 'card' ? 'Add a card EMI' : 'Add a loan',
     holding: spec?.type === 'holding' && spec.id ? 'Edit' : spec?.type === 'holding' && spec.kind === 'owe' ? 'Add something you owe' : 'Add something you own',
     account: spec?.type === 'account' && spec.id ? 'Edit account' : 'Add account', category: spec?.type === 'category' && spec.id ? 'Edit category' : 'New category',
-    help: 'Help & simple answers', more: 'Everything in SpendCop', csv: 'Import from your bank', backup: 'Back up & export', confirm: spec?.type === 'confirm' ? spec.title : '',
+    help: 'Help & simple answers', more: 'Everything in SpendCop', csv: 'Import from your bank', backup: 'Back up & export', export: 'Export', confirm: spec?.type === 'confirm' ? spec.title : '',
     occ: 'This payment', transfer: spec?.type === 'transfer' && spec.id ? 'Edit transfer' : 'Move money between accounts',
   }
   return (
     <>
-      {(['quick', 'bill', 'goal', 'trip', 'debt', 'emi', 'holding', 'account', 'category', 'help', 'more', 'csv', 'backup', 'confirm', 'occ', 'transfer'] as const).map((t) => (
+      {(['quick', 'bill', 'goal', 'trip', 'debt', 'emi', 'holding', 'account', 'category', 'help', 'more', 'csv', 'backup', 'export', 'confirm', 'occ', 'transfer'] as const).map((t) => (
         <Sheet key={t} open={is(t)} onClose={close} title={titles[t]} wide={t === 'help' || t === 'backup'}>
           {spec?.type === t && <Body key={key} spec={spec} />}
         </Sheet>
@@ -60,6 +60,7 @@ function Body({ spec }: { spec: SheetSpec }) {
     case 'more': return <More />
     case 'csv': return <CsvImport />
     case 'backup': return <Backup />
+    case 'export': return <Export month={spec.month} />
     case 'confirm': return <Confirm spec={spec} />
     case 'occ': return <OccForm ruleId={spec.ruleId} date={spec.date} />
     case 'transfer': return <TransferForm id={spec.id} from={spec.from} to={spec.to} />
@@ -847,6 +848,49 @@ function CsvImport() {
     </div>
   )
 }
+/* ---------------- export: a month (or more) as a PDF report or a CSV file ---------------- */
+function Export({ month }: { month?: string }) {
+  const s = useData()
+  const [fmt, setFmt] = useState<'pdf' | 'csv'>('pdf')
+  const [range, setRange] = useState<'month' | 'year' | 'all'>('month')
+  const [k, setK] = useState(month ?? THIS_MONTH)
+  const [busy, setBusy] = useState(false)
+  const ok = /^\d{4}-\d{2}$/.test(k)
+  const span = range === 'month' ? [`${k}-01`, monthEnd(k)] : range === 'year' ? [`${k.slice(0, 4)}-01-01`, `${k.slice(0, 4)}-12-31`] : ['1900-01-01', '2999-12-31']
+  const n = ok ? itemsIn(s, span[0], span[1]).length : 0
+  const go = async () => {
+    setBusy(true)
+    try {
+      let r
+      if (fmt === 'pdf') {
+        const { monthlyReport } = await import('../lib/report')
+        r = await saveFile(`spendcop-${k}.pdf`, await monthlyReport(s, k))
+      } else {
+        const name = range === 'month' ? k : range === 'year' ? k.slice(0, 4) : 'all'
+        r = await saveFile(`spendcop-${name}.csv`, new Blob([toCsvRange(s, span[0], span[1])], { type: 'text/csv;charset=utf-8' }))
+      }
+      if (r === 'saved') done(fmt === 'pdf' ? `Your ${monthName(k)} report is ready` : 'Your CSV file is ready')
+      else toast(r === 'declined' ? 'Download cancelled' : 'Could not save the file here')
+    } catch { toast("Couldn't make the file. Try again.") } finally { setBusy(false) }
+  }
+  return (
+    <div className="flex flex-col gap-5">
+      <div><p className="mb-2 text-[13.5px] font-semibold text-ink2">Format</p>
+        <Segmented label="Format" value={fmt} onChange={setFmt} options={[['pdf', <><FileText size={15} />PDF report</>], ['csv', <><FileSpreadsheet size={15} />CSV file</>]]} /></div>
+      {fmt === 'csv' && <div><p className="mb-2 text-[13.5px] font-semibold text-ink2">Which entries</p>
+        <Segmented label="Which entries" value={range} onChange={setRange} options={[['month', 'One month'], ['year', 'Whole year'], ['all', 'Everything']]} /></div>}
+      {(fmt === 'pdf' || range !== 'all') && <Field label={fmt === 'csv' && range === 'year' ? 'Year (pick any month in it)' : 'Month'}><input className="field !w-[200px]" type="month" value={k} onChange={(e) => setK(e.target.value)} /></Field>}
+      <div className="rounded-2xl bg-surface2 p-4 text-[14px] text-ink2">
+        {fmt === 'pdf'
+          ? <>A printable report for <b className="text-ink">{ok ? monthName(k) : '…'}</b>: the month at a glance, plan vs spending, bills and pay, loans and EMIs, goals and every entry.</>
+          : <>{n.toLocaleString()} entr{n === 1 ? 'y' : 'ies'}{range === 'month' && ok ? ` in ${monthName(k)}` : range === 'year' && ok ? ` in ${k.slice(0, 4)}` : ''}, with date, description, type, category, account, person, amount and whether it's paid or still due. Opens in Excel or Google Sheets.</>}
+        <span className="mt-1 block text-[12.5px] text-muted">Made on this device. Nothing is uploaded.</span>
+      </div>
+      <Foot><Button variant="primary" onClick={go} disabled={!ok && range !== 'all' || busy}><Download size={16} />{busy ? 'Making file…' : fmt === 'pdf' ? 'Export PDF' : 'Export CSV'}</Button></Foot>
+    </div>
+  )
+}
+
 function Backup() {
   const s = useData()
   const [tab, setTab] = useState<'excel' | 'csv' | 'json' | 'restore'>('excel')

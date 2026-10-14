@@ -1,9 +1,8 @@
 import { AnimatePresence, motion, MotionConfig } from 'framer-motion'
 import {
-  Banknote, BarChart3, Bot, CalendarClock, Cloud, CloudOff, LogIn, RefreshCw, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Plane, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check, Gem,
+  Banknote, BarChart3, Bot, CalendarClock, Cloud, CloudOff, LogIn, RefreshCw, CalendarDays, ChevronLeft, ChevronRight, Compass, Goal, HelpCircle, Plane, Home as HomeIcon, Landmark, LayoutGrid, PiggyBank, Plus, ReceiptText, Scale, Settings as Cog, Sparkles, Users, Wallet, X, Moon, Sun, AlertTriangle, Check, Gem, Download,
 } from 'lucide-react'
 import { lazy, Suspense, useEffect, type ComponentType } from 'react'
-import ReportButton from './components/ReportButton'
 import Sheets from './components/Sheets'
 import { Button } from './components/ui'
 import { monthName, THIS_MONTH } from './lib/dates'
@@ -208,7 +207,8 @@ function TopBar() {
           {month !== THIS_MONTH && <button type="button" onClick={() => setMonth(THIS_MONTH)} className="ml-1 rounded-xl px-2.5 py-1.5 text-[13px] font-semibold text-accent hover:bg-accent-soft">Today</button>}
         </div>
       )}
-      {n.month && <ReportButton month={month} />}
+      <button type="button" onClick={() => open({ type: 'export', month: n.month ? month : THIS_MONTH })} title="Export as PDF or CSV" aria-label="Export as PDF or CSV"
+        className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface px-3 font-semibold text-ink shadow-card hover:border-accent"><Download size={18} className="text-accent" /><span className="hidden sm:inline">Export</span></button>
       <button type="button" onClick={() => openAsk()} className="inline-flex h-10 items-center gap-2 rounded-xl border border-line bg-surface px-3 font-semibold text-ink shadow-card hover:border-accent" aria-label="Ask SpendCop"><Bot size={18} className="text-accent" /><span className="hidden sm:inline">Ask SpendCop</span></button>
       <ThemeToggle />
       <button type="button" onClick={() => useUI.getState().go('settings')} aria-label="Settings" title="Settings" aria-current={view === 'settings' ? 'page' : undefined}

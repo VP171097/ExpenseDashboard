@@ -2,7 +2,6 @@ import { ChevronRight, Compass, Database, Eraser, FileSpreadsheet, FileText, Moo
 import { saveFile, workbook } from '../lib/files'
 import { addMonthsDate, fmtDate, iso, monthName, NOW, paydaysBetween, THIS_MONTH, TODAY, WEEKDAYS } from '../lib/dates'
 import { useLegal } from '../lib/entry'
-import ReportButton from '../components/ReportButton'
 import { useEffect, useState } from 'react'
 import { storageEstimate } from '../lib/storage'
 import { Button, Card, CardHead, CatIcon, Field, Segmented, Switch } from '../components/ui'
@@ -22,7 +21,6 @@ export default function Settings() {
   const open = useUI((u) => u.open)
   const go = useUI((u) => u.go)
   const [people, setPeople] = useState(s.people.join(', '))
-  const [reportMonth, setReportMonth] = useState(THIS_MONTH)
   const set = (fn: (x: S) => void) => update((d) => fn(d.settings))
   const signedIn = useAuth((a) => a.status === 'signed-in')
   const aiOn = useAi((a) => a.enabled) && signedIn
@@ -94,7 +92,7 @@ export default function Settings() {
         <div className="flex flex-wrap gap-2">
           <Button variant="primary" onClick={async () => { const r = await saveFile(`spendcop-${THIS_MONTH.slice(0, 4)}.xlsx`, await workbook(s, +THIS_MONTH.slice(0, 4))); toast(r === 'saved' ? 'Your Excel workbook is ready' : r === 'declined' ? 'Download cancelled' : 'Could not save the file here') }}><FileSpreadsheet size={16} />Download Excel workbook</Button>
           <Button onClick={() => open({ type: 'backup' })}><Download size={16} />Back up or export</Button>
-          <span className="inline-flex items-center gap-2"><input className="field !w-[150px] !py-2" type="month" value={reportMonth} onChange={(e) => e.target.value && setReportMonth(e.target.value)} aria-label="Report month" /><ReportButton month={reportMonth} label /></span>
+          <Button onClick={() => open({ type: 'export' })}><FileText size={16} />Export PDF or CSV</Button>
           <Button onClick={() => { go('home'); setTimeout(() => useUI.getState().setTour(true), 300) }}><Compass size={16} />Take the tour again</Button>
           <Button onClick={() => open({ type: 'csv' })}><Upload size={16} />Import from my bank</Button>
         </div>

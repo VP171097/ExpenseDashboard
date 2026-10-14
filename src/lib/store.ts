@@ -101,6 +101,7 @@ export type SheetSpec =
   | { type: 'more' }
   | { type: 'csv' }
   | { type: 'backup' }
+  | { type: 'export'; month?: string }
   | { type: 'confirm'; title: string; text: string; label: string; run: () => void }
   | { type: 'occ'; ruleId: string; date: string }
   | { type: 'transfer'; id?: string; from?: string; to?: string }
