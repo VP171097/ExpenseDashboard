@@ -22,7 +22,7 @@ export default function Settings() {
   const [people, setPeople] = useState(s.people.join(', '))
   const set = (fn: (x: S) => void) => update((d) => fn(d.settings))
   const signedIn = useAuth((a) => a.status === 'signed-in')
-  const aiOn = useAi((a) => a.mode !== 'off')
+  const aiOn = useAi((a) => a.enabled) && signedIn
   return (
     <div className="grid grid-cols-12 gap-4 lg:gap-5">
       <AccountCard />

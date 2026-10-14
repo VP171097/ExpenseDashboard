@@ -753,8 +753,8 @@ const FAQS: [string, string][] = [
   ['Is my data private?', 'Without an account, nothing leaves your device. With an account, your data is kept in a private database row that only your login can read. Tally never asks for your bank login and shows no ads.'],
   ['Does it work without internet?', 'Yes. Tally works fully offline. If you\'re signed in, changes sync the next time you\'re online, and if two devices both changed something, Tally asks which copy to keep.'],
   ['Can I take my data out?', 'Any time: CSV for spreadsheets, an Excel workbook with every part of Tally, or a full backup you can restore later.'],
-  ['How does Ask Tally work?', 'When you ask a question, Tally sends a summary of your dashboard (totals, plan, bills, goals, trips and recent entries) to Claude, an AI from Anthropic, and shows the answer as it arrives. You can see exactly what is sent, switch off entry descriptions, or leave Ask Tally off.'],
-  ['Is it free?', 'Tally is free to use. Ask Tally runs on an AI service, which uses either the AI key your Tally setup provides or your own Anthropic API key, and that service may charge for use.'],
+  ['How does Ask Tally work?', 'Common questions, like "Can I afford this?", "Why is my score low?" or "Where can I cut back?", are answered instantly on your device from your own numbers, and nothing is sent anywhere. When you\'re logged in, Tally AI answers any other question from a summary of your dashboard, and you can see exactly what it reads or switch it off.'],
+  ['Is it free?', 'Yes. Tally, its instant answers, Tally AI and accounts are all free to use.'],
 ]
 function Faq() {
   const [open, setOpen] = useState(0)

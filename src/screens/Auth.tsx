@@ -24,6 +24,8 @@ export default function Auth({ reset = false }: { reset?: boolean }) {
   const [err, setErr] = useState('')
   const [cloudOn, setCloudOn] = useState(() => !!cloudConfig())
   const [hasGoogle, setHasGoogle] = useState(false)
+  // inside the claude.ai viewer the page is framed and can't reach other websites
+  const inClaude = typeof window !== 'undefined' && window.top !== window && !!(window as unknown as { claude?: { use?: unknown } }).claude?.use
   useEffect(() => { void authOptions().then((o) => setHasGoogle(!!o?.google)) }, [cloudOn])
   const back = () => entry.go('landing')
   const local = () => entry.go('setup')
@@ -81,6 +83,7 @@ export default function Auth({ reset = false }: { reset?: boolean }) {
                 </div>
               ) : (
                 <>
+                  {inClaude && <p className="mt-3 rounded-xl bg-warn-soft px-3.5 py-2.5 text-[13.5px]">You're viewing Tally inside claude.ai, where pages can't reach other websites, so logging in may not work here. Open Tally from its own web address to use your account, or continue without one.</p>}
                   {mode === 'login' && <p className="mt-1.5 text-[15px] text-ink2">Welcome back. Your money picks up where you left it.</p>}
                   {mode === 'signup' && <p className="mt-1.5 text-[15px] text-ink2">Free. Keep your money in sync on every device.</p>}
                   {mode === 'forgot' && <p className="mt-1.5 text-[15px] text-ink2">Enter your email and we'll send you a link to choose a new password.</p>}

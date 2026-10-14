@@ -1,16 +1,10 @@
 /**
- * How Tally asks Claude a question. Shared by the browser ("my own API key" mode) and the
- * ask-tally Edge Function, so both send exactly the same request. No imports: it runs in
- * Deno and in the browser bundle.
+ * How Tally asks the AI (Google Gemini) a question. Shared by the browser and the ask-tally
+ * Edge Function. No imports: it runs in Deno and in the browser bundle.
  */
-export const TALLY_MODEL = 'claude-opus-5-5'
-/** Lets the API retry a declined request on the model Anthropic recommends, inside the same call. */
-export const FALLBACK_BETA = 'server-side-fallback-2026-07-01'
-const FALLBACK_MODELS = ['claude-opus-5-5', 'claude-opus-5', 'claude-fable-5-1', 'claude-sonnet-5-5']
-
 export const LIMITS = { question: 2000, turns: 12, context: 150_000 }
 
-export const SYSTEM = `You are "Ask Tally", the money helper inside Tally, a personal and family budgeting app used by people with no finance background.
+export const SYSTEM = `You are "Tally AI", the money helper inside Tally, a personal and family budgeting app used by people with no finance background.
 
 The user's dashboard is given in <dashboard> as JSON. Amounts are in the currency named in "currency"; dates are YYYY-MM-DD; "today" is the user's date. It is a summary computed by the app: monthly totals, plan vs spending per category, the money health score and its checks, bills, accounts, goals, debts, trips and the most recent entries.
 
@@ -41,43 +35,32 @@ export function validate(context: unknown, turns: unknown): string | null {
   return null
 }
 
-/**
- * The Messages API request. The dashboard sits at the start of the first message with a cache
- * breakpoint, so follow-up questions reuse it from the prompt cache and answer faster.
- */
-export function buildRequest(context: string, turns: Turn[], model: string = TALLY_MODEL) {
+/** Google's alias for its current Flash model. */
+export const GEMINI_MODEL = 'gemini-flash-latest'
+
+/** The same conversation for Gemini: dashboard first, Tally's instructions as the system instruction. */
+export function geminiRequest(context: string, turns: Turn[], model: string = GEMINI_MODEL) {
   let recent = turns.slice(-LIMITS.turns)
   if (recent[0]?.role === 'assistant') recent = recent.slice(1)
-  const messages = recent.map((t, i) => ({
-    role: t.role,
-    content: i === 0
-      ? [
-          { type: 'text' as const, text: `<dashboard>\n${context}\n</dashboard>`, cache_control: { type: 'ephemeral' as const } },
-          { type: 'text' as const, text: t.text },
-        ]
-      : [{ type: 'text' as const, text: t.text }],
-  }))
-  const fallback = FALLBACK_MODELS.includes(model)
   return {
     model,
-    max_tokens: 16000,
-    system: SYSTEM,
-    messages,
-    // quick, conversational answers: low effort keeps the first words coming fast
-    output_config: { effort: 'low' as const },
-    ...(fallback ? { betas: [FALLBACK_BETA], fallbacks: 'default' as const } : {}),
+    contents: recent.map((t, i) => ({
+      role: t.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: i === 0 ? `<dashboard>\n${context}\n</dashboard>\n\n${t.text}` : t.text }],
+    })),
+    config: { systemInstruction: SYSTEM },
   }
 }
 
-type StreamLike = AsyncIterable<{ type: string; delta?: unknown }> & { finalMessage(): Promise<{ stop_reason: string | null }> }
-
-/** Turns an SDK message stream into Tally's simple events: text as it arrives, then done. */
-export async function* pump(stream: StreamLike): AsyncGenerator<AiEvent> {
-  for await (const ev of stream) {
-    const d = ev.delta as { type?: string; text?: string } | undefined
-    if (ev.type === 'content_block_delta' && d?.type === 'text_delta' && d.text) yield { type: 'text', text: d.text }
+type GeminiChunk = { text?: string; candidates?: { finishReason?: string }[] }
+/** Gemini's stream as Tally's events. */
+export async function* pumpGemini(stream: AsyncIterable<GeminiChunk>): AsyncGenerator<AiEvent> {
+  let stop: string | null = null
+  for await (const c of stream) {
+    const t = c.text
+    if (t) yield { type: 'text', text: t }
+    stop = c.candidates?.[0]?.finishReason ?? stop
   }
-  const final = await stream.finalMessage()
-  if (final.stop_reason === 'refusal') yield { type: 'error', message: "Claude couldn't answer that one. Try asking it a different way." }
-  yield { type: 'done', stop: final.stop_reason }
+  if (stop && /SAFETY|PROHIBITED|BLOCKLIST|RECITATION|SPII/.test(stop)) yield { type: 'error', message: "Tally AI couldn't answer that one. Try asking it a different way." }
+  yield { type: 'done', stop }
 }
