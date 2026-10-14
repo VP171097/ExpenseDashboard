@@ -81,3 +81,45 @@ export async function* pump(stream: StreamLike): AsyncGenerator<AiEvent> {
   if (final.stop_reason === 'refusal') yield { type: 'error', message: "Claude couldn't answer that one. Try asking it a different way." }
   yield { type: 'done', stop: final.stop_reason }
 }
+
+/* ---------- Google Gemini (has a free tier) ---------- */
+/** Google's alias for its current Flash model, which is on the Gemini API free tier. */
+export const GEMINI_MODEL = 'gemini-flash-latest'
+
+/** The same conversation for Gemini: dashboard first, Tally's instructions as the system instruction. */
+export function geminiRequest(context: string, turns: Turn[], model: string = GEMINI_MODEL) {
+  let recent = turns.slice(-LIMITS.turns)
+  if (recent[0]?.role === 'assistant') recent = recent.slice(1)
+  return {
+    model,
+    contents: recent.map((t, i) => ({
+      role: t.role === 'assistant' ? 'model' : 'user',
+      parts: [{ text: i === 0 ? `<dashboard>\n${context}\n</dashboard>\n\n${t.text}` : t.text }],
+    })),
+    config: { systemInstruction: SYSTEM },
+  }
+}
+
+type GeminiChunk = { text?: string; candidates?: { finishReason?: string }[] }
+/** Gemini's stream as Tally's events. */
+export async function* pumpGemini(stream: AsyncIterable<GeminiChunk>): AsyncGenerator<AiEvent> {
+  let stop: string | null = null
+  for await (const c of stream) {
+    const t = c.text
+    if (t) yield { type: 'text', text: t }
+    stop = c.candidates?.[0]?.finishReason ?? stop
+  }
+  if (stop && /SAFETY|PROHIBITED|BLOCKLIST|RECITATION|SPII/.test(stop)) yield { type: 'error', message: "Gemini wouldn't answer that one. Try asking it a different way." }
+  yield { type: 'done', stop }
+}
+
+/* ---------- Claude through the claude.ai viewer (no key) ---------- */
+/** The conversation as claude.ai's page sampling takes it: instructions and dashboard lead as a user turn. */
+export function sampleTurns(context: string, turns: Turn[]) {
+  let recent = turns.slice(-LIMITS.turns)
+  if (recent[0]?.role === 'assistant') recent = recent.slice(1)
+  return [
+    { role: 'user' as const, content: `${SYSTEM}\n\n<dashboard>\n${context}\n</dashboard>` },
+    ...recent.map((t) => ({ role: t.role, content: t.text })),
+  ]
+}

@@ -25,18 +25,27 @@ Without any setup, Tally runs fully on the device and the landing page's "Log in
 2. **Create the table and rules.** In the SQL editor, run `supabase/migrations/20261014000000_tally_data.sql`, or `supabase db push` with the Supabase CLI. It creates one private row per user (`tally_data`), row-level security so each login can only read and change its own row, and `tally_save()`, which refuses a save if another device saved in between.
 3. **Turn on sign-in methods** under Authentication → Providers: Email (password sign-up, confirmation emails and password reset) and, if you like, Google (needs a Google OAuth client ID and secret). Add your site's address under Authentication → URL Configuration so email links and Google return to it.
 4. **Point Tally at the project.** Copy `.env.example` to `.env.local` and fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (Project Settings → API), then build. The anon key is meant to be public; row-level security protects the data. Alternatively, enter the URL and key in Settings → Account & sync on any copy of Tally.
-5. **Ask Tally through your accounts (optional).** Deploy the function and give it an Anthropic API key:
+5. **Ask Tally through your accounts (optional).** Deploy the function and give it one AI key:
    ```bash
    supabase functions deploy ask-tally
-   supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
-   # optional: supabase secrets set TALLY_AI_MODEL=claude-haiku-5-5   (default claude-opus-5-5)
+   supabase secrets set GEMINI_API_KEY=AIza...        # Google Gemini, free tier (aistudio.google.com)
+   # or: supabase secrets set ANTHROPIC_API_KEY=sk-ant-...   # Claude, paid by use
+   # optional: TALLY_AI_PROVIDER=gemini|claude when both are set, GEMINI_MODEL (default gemini-flash-latest), TALLY_AI_MODEL (default claude-opus-5-5)
    ```
-   No command line? In the Supabase dashboard go to **Edge Functions → Deploy a new function → Via editor**, name it `ask-tally`, paste all of `supabase/dashboard/ask-tally.ts` (the same function in one file), and deploy. Then add `ANTHROPIC_API_KEY` under **Edge Functions → Secrets**.
-   The function only answers signed-in users of your project, keeps the key on the server, and logs nothing about the question. Without it, people can still use Ask Tally with their own Anthropic API key, kept only in their browser.
+   No command line? In the Supabase dashboard go to **Edge Functions → Deploy a new function → Via editor**, name it `ask-tally`, paste all of `supabase/dashboard/ask-tally.ts` (the same function in one file; regenerate it with `npm run dashboard-function` after changing the function), and deploy. Then add the key under **Edge Functions → Secrets**.
+   The function only answers signed-in users of your project, keeps the key on the server, and logs nothing about the question.
 
 **How sync behaves.** Changes save on the device first and upload a few seconds later (or when the app is hidden or comes back online). If two devices both changed, Tally asks which copy to keep and sets the other aside on that device, where Settings can bring it back. Example data is never uploaded. The cloud copy is protected by row-level security but is not end-to-end encrypted.
 
-**What Ask Tally sends.** Only when a question is asked: a summary of the dashboard (this month's totals, plan vs spending, the health score and its checks, bills, accounts, goals, debts, trips, and up to 40 recent entries, with or without their descriptions). Settings shows the exact text. It is sent to Claude by Anthropic; Ask Tally can't change any data.
+**Ask Tally.** Common questions ("Can I afford ₹1,200 tonight?", "Why is my score low?", "Where can I cut back?", goals, trips, debts, bills, category spending, savings, net worth) are answered instantly by built-in answers on the device: free, private, offline. For anything else, people can connect an AI in Settings → Ask Tally:
+- **Claude on their claude.ai account** — no key; only while Tally is opened inside claude.ai (the viewer is asked once to allow it).
+- **Google Gemini, free tier** — their own key from aistudio.google.com, kept in their browser. Google may use free-tier requests to improve its products; Tally says so next to the option.
+- **Their Tally account** — the `ask-tally` function above (Claude or Gemini, key on the server).
+- **Claude with their own Anthropic API key**, kept in their browser.
+
+Only for questions the built-in answers can't handle, Tally sends the chosen AI a summary of the dashboard (this month's totals, plan vs spending, the health score and its checks, bills, accounts, goals, debts, trips, and up to 40 recent entries, with or without their descriptions). Settings shows the exact text. The AI can't change any data.
+
+**Inside claude.ai** pages can't reach other websites, so log in, sync and the Gemini/Supabase options only work when Tally is opened from its own web address.
 
 ## What it does
 

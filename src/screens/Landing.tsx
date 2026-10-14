@@ -753,8 +753,8 @@ const FAQS: [string, string][] = [
   ['Is my data private?', 'Without an account, nothing leaves your device. With an account, your data is kept in a private database row that only your login can read. Tally never asks for your bank login and shows no ads.'],
   ['Does it work without internet?', 'Yes. Tally works fully offline. If you\'re signed in, changes sync the next time you\'re online, and if two devices both changed something, Tally asks which copy to keep.'],
   ['Can I take my data out?', 'Any time: CSV for spreadsheets, an Excel workbook with every part of Tally, or a full backup you can restore later.'],
-  ['How does Ask Tally work?', 'When you ask a question, Tally sends a summary of your dashboard (totals, plan, bills, goals, trips and recent entries) to Claude, an AI from Anthropic, and shows the answer as it arrives. You can see exactly what is sent, switch off entry descriptions, or leave Ask Tally off.'],
-  ['Is it free?', 'Tally is free to use. Ask Tally runs on an AI service, which uses either the AI key your Tally setup provides or your own Anthropic API key, and that service may charge for use.'],
+  ['How does Ask Tally work?', 'Common questions, like "Can I afford this?", "Why is my score low?" or "Where can I cut back?", are answered instantly on your device from your own numbers. Nothing is sent anywhere. For any other question you can connect an AI: Claude on your own claude.ai account, Google Gemini on its free tier, or Claude with an API key. Then Tally sends a summary of your dashboard to that AI, and you can see exactly what it sends.'],
+  ['Is it free?', 'Yes. Tally, its built-in answers and accounts are free. Connecting an AI is optional: Claude through claude.ai uses your own claude.ai plan, Gemini has a free tier (Google may use free-tier requests to improve its products), and an Anthropic API key is paid by use.'],
 ]
 function Faq() {
   const [open, setOpen] = useState(0)

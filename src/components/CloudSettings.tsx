@@ -10,8 +10,8 @@ import { useEntry } from '../lib/entry'
 import { readCopy } from '../lib/storage'
 import { replaceData, toast, useData, useStore, useUI } from '../lib/store'
 import type { State } from '../lib/types'
-import { openAsk } from './AskTally'
-import { Button, Card, CardHead, Field, Segmented, Switch } from './ui'
+import { AiChoices, openAsk } from './AskTally'
+import { Button, Card, CardHead, Field, Switch } from './ui'
 
 export function AccountCard() {
   const auth = useAuth()
@@ -116,37 +116,22 @@ function ConnectProject({ compact = false }: { compact?: boolean }) {
 export function AiCard() {
   const s = useData()
   const ai = useAi()
-  const signedIn = useAuth((a) => a.status === 'signed-in')
-  const cloud = !!cloudConfig()
-  const [key, setKey] = useState(ai.key)
   const [peek, setPeek] = useState(false)
   const size = contextText(s, { notes: ai.notes }).length
   return (
     <Card i={1} className="col-span-12 lg:col-span-6">
-      <CardHead title={<span className="flex items-center gap-2"><Bot size={18} className="text-accent" />Ask Tally (AI)</span>} sub="Plain-language answers about your own money" />
-      <Segmented label="How Ask Tally connects" value={ai.mode} onChange={(v) => setAi({ mode: v })}
-        options={[['off', 'Off'], ['cloud', 'My account'], ['key', 'My API key']]} />
+      <CardHead title={<span className="flex items-center gap-2"><Bot size={18} className="text-accent" />Ask Tally</span>} sub="Plain-language answers about your own money" />
+      <p className="mb-4 rounded-2xl bg-accent-soft p-3.5 text-[14px]"><b>Built-in answers are always on.</b> Questions like "Can I afford this?", "Why is my score low?" or "Where can I cut back?" are answered instantly on this device, for free. Connect an AI below for any other question.</p>
+      <AiChoices />
       <div className="mt-4 flex flex-col gap-3 text-[14px]">
-        {ai.mode === 'off' && <p className="text-ink2">Off. Nothing is ever sent to an AI service.</p>}
-        {ai.mode === 'cloud' && <p className="text-ink2">{!cloud ? 'Needs accounts switched on (see Account & sync).' : !signedIn ? 'Log in to use Ask Tally through your account.' : 'Questions go through your Tally cloud. The AI key stays on the server.'}</p>}
-        {ai.mode === 'key' && (
-          <>
-            <p className="text-ink2">Your Anthropic API key is kept only in this browser and is never synced or backed up. Anthropic bills your account for each question.</p>
-            <div className="flex gap-2">
-              <input className="field flex-1" type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="sk-ant-…" aria-label="Anthropic API key" autoComplete="off" />
-              <Button variant="primary" onClick={() => { setAi({ key: key.trim() }); toast('API key saved on this device') }} disabled={key.trim() === ai.key}>Save</Button>
-            </div>
-            {ai.key && <button type="button" className="w-fit text-[13px] font-semibold text-bad" onClick={() => { setAi({ key: '' }); setKey('') }}>Remove key from this device</button>}
-          </>
-        )}
         <div className="flex items-start justify-between gap-4 rounded-2xl border border-line p-4">
-          <div><p className="font-semibold">Include entry descriptions</p><p className="text-[13px] text-ink2">Lets Ask Tally see what recent entries were for (like "Coffee with Sam"). Turn off to share amounts and categories only.</p></div>
+          <div><p className="font-semibold">Include entry descriptions</p><p className="text-[13px] text-ink2">Lets the AI see what recent entries were for (like "Coffee with Sam"). Turn off to share amounts and categories only.</p></div>
           <Switch checked={ai.notes} label="Include entry descriptions" onChange={(v) => setAi({ notes: v })} />
         </div>
-        <p className="flex items-center gap-2 text-[13px] text-ink2"><ShieldCheck size={15} className="text-good" />Shared only when you ask: a summary of about {Math.round(size / 1000)} KB. Ask Tally can't change anything.</p>
-        <button type="button" onClick={() => setPeek((v) => !v)} className="w-fit text-[13.5px] font-semibold text-accent" aria-expanded={peek}>{peek ? 'Hide' : 'See exactly what is shared'}</button>
+        <p className="flex items-center gap-2 text-[13px] text-ink2"><ShieldCheck size={15} className="text-good" />{ai.mode === 'off' ? 'Nothing is sent to any AI.' : `Sent only when the built-in answers can't help: a summary of about ${Math.round(size / 1000)} KB. The AI can't change anything.`}</p>
+        <button type="button" onClick={() => setPeek((v) => !v)} className="w-fit text-[13.5px] font-semibold text-accent" aria-expanded={peek}>{peek ? 'Hide' : 'See exactly what would be shared'}</button>
         {peek && <pre className="max-h-72 overflow-auto rounded-xl border border-line bg-surface2/60 p-3 text-[11px] leading-snug">{JSON.stringify(JSON.parse(contextText(s, { notes: ai.notes })), null, 2)}</pre>}
-        {ai.mode !== 'off' && <Button className="w-fit" onClick={() => openAsk()}><Bot size={16} />Open Ask Tally</Button>}
+        <Button className="w-fit" onClick={() => openAsk()}><Bot size={16} />Open Ask Tally</Button>
       </div>
     </Card>
   )
