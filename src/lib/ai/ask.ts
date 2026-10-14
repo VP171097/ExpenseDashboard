@@ -49,7 +49,8 @@ async function* viaCloud(context: string, turns: Turn[], signal?: AbortSignal): 
     })
   } catch (e) {
     if ((e as Error).name === 'AbortError') return
-    yield { type: 'error', message: "Can't reach Ask Tally. Check your connection." }; return
+    // an undeployed function and a dropped connection look the same to the browser
+    yield { type: 'error', message: navigator.onLine === false ? "You're offline. Ask Tally needs a connection." : "Can't reach Ask Tally. If you're online, the ask-tally function may not be deployed in your Supabase project yet (see the README), or use your own API key in Settings." }; return
   }
   if (!res.ok || !res.body) {
     let msg = res.status === 404 ? 'The ask-tally function isn\'t deployed in your Supabase project yet.' : `Ask Tally had a problem (${res.status}).`
