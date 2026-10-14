@@ -17,6 +17,13 @@ npm run build:single  # one self-contained file: dist-single/index.html (double-
 
 The split build is the fast one: screens, charts, Excel export, three.js, the landing page and Supabase download only when needed. The single file inlines everything, including the landing-page photos, for offline sharing.
 
+## Publish on GitHub Pages
+
+`.github/workflows/pages.yml` builds the app and publishes `dist/` on every push to `main` (or run it by hand from the Actions tab). One-time setup:
+
+1. In the repo, go to **Settings → Pages** and set **Source** to **GitHub Actions**.
+2. In Supabase, go to **Authentication → URL Configuration**. Set **Site URL** to your Pages address (for example `https://<user>.github.io/<repo>/`) and add the same address under **Redirect URLs**, so sign-up, password-reset and Google links return to the site.
+
 ## Accounts, sync and Ask Tally (optional)
 
 Without any setup, Tally runs fully on the device and the landing page's "Log in" explains that accounts aren't switched on. To switch them on:
