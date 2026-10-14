@@ -11,6 +11,8 @@ import { accessToken } from '../cloud/auth'
 import { cloudConfig } from '../cloud/client'
 
 export type { AiEvent, Turn }
+/** The Edge Function that answers: its name in your Supabase project (set VITE_AI_FUNCTION if you deployed it under another name). */
+const AI_FUNCTION = import.meta.env.VITE_AI_FUNCTION || 'ask-tally'
 /** enabled: use SpendCop AI for other questions. notes: include entry descriptions in what is sent. */
 export interface AiSettings { enabled: boolean; notes: boolean }
 const KEY = 'tally.ai'
@@ -39,7 +41,7 @@ export async function* ask(context: string, turns: Turn[], signal?: AbortSignal)
   if (!token) { yield { type: 'error', message: 'Log in to use SpendCop AI.' }; return }
   let res: Response
   try {
-    res = await fetch(`${c.url.replace(/\/$/, '')}/functions/v1/ask-tally`, {
+    res = await fetch(`${c.url.replace(/\/$/, '')}/functions/v1/${AI_FUNCTION}`, {
       method: 'POST', signal,
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, apikey: c.anonKey },
       body: JSON.stringify({ context, turns }),

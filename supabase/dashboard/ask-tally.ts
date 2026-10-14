@@ -9,7 +9,8 @@
  * newline-delimited JSON events. The Gemini key stays here as a secret and never reaches the
  * browser. Nothing from the request is logged or stored.
  *
- * Secrets: GEMINI_API_KEY (required), GEMINI_MODEL (optional, default gemini-flash-latest).
+ * Secrets: GEMINI_API_KEY (required), GEMINI_MODEL (optional, default gemini-flash-latest),
+ * GEMINI_FALLBACK_MODEL (optional, used when the main model is busy; default gemini-flash-lite-latest).
  */
 import { createClient } from 'npm:@supabase/supabase-js@2.117.3'
 import { ApiError, GoogleGenAI } from 'npm:@google/genai@2.29.1'
@@ -93,9 +94,25 @@ const json = (status: number, body: unknown) => new Response(JSON.stringify(body
 
 const env = (k: string) => Deno.env.get(k) || ''
 let gemini: GoogleGenAI | null = null
+/** Google's lighter model, used when the main one is too busy to answer. */
+const FALLBACK_MODEL = 'gemini-flash-lite-latest'
+const busy = (e: unknown) => e instanceof ApiError && (e.status === 503 || e.status === 500 || e.status === 429)
 async function* answer(context: string, turns: Turn[]): AsyncGenerator<AiEvent> {
   gemini ??= new GoogleGenAI({ apiKey: env('GEMINI_API_KEY'), ...(env('GEMINI_BASE_URL') ? { httpOptions: { baseUrl: env('GEMINI_BASE_URL') } } : {}) })
-  yield* pumpGemini(await gemini.models.generateContentStream(geminiRequest(context, turns, env('GEMINI_MODEL') || GEMINI_MODEL)))
+  const main = env('GEMINI_MODEL') || GEMINI_MODEL, spare = env('GEMINI_FALLBACK_MODEL') || FALLBACK_MODEL
+  // when Gemini is busy: try again once, then switch to the lighter model
+  const tries = [main, main, ...(spare !== main ? [spare] : [])]
+  for (const [i, model] of tries.entries()) {
+    let sent = false
+    try {
+      for await (const e of pumpGemini(await gemini.models.generateContentStream(geminiRequest(context, turns, model)))) { sent ||= e.type === 'text'; yield e }
+      return
+    } catch (e) {
+      // once part of an answer has gone out, starting again would repeat it
+      if (sent || !busy(e) || i === tries.length - 1) throw e
+      if (i === 0) await new Promise((r) => setTimeout(r, 800))
+    }
+  }
 }
 
 Deno.serve(async (req) => {
@@ -133,7 +150,7 @@ Deno.serve(async (req) => {
 
 function friendly(err: unknown) {
   if (err instanceof ApiError) {
-    if (err.status === 429) return 'SpendCop AI is busy right now. Try again in a minute.'
+    if (err.status === 429 || err.status === 503 || err.status === 500) return 'SpendCop AI is busy right now. Try again in a minute.'
     if (err.status === 400 || err.status === 401 || err.status === 403) return 'SpendCop AI is not set up correctly on the server. (Check the GEMINI_API_KEY secret.)'
     return `SpendCop AI had a problem (${err.status}). Try again.`
   }
