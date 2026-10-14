@@ -4,11 +4,11 @@
  */
 import { AnimatePresence, motion } from 'framer-motion'
 import { ArrowLeft, ArrowRight, CheckCircle2, Cloud, Eye, EyeOff, KeyRound, Mail, ShieldCheck, Wallet } from 'lucide-react'
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import writing from '../assets/landing/writing.webp'
 import shot from '../assets/landing/app-desktop-dark.webp'
 import { checkCloudConfig, cloudConfig, saveCloudConfig } from '../lib/cloud/client'
-import { google, logIn, restartAuth, sendReset, setNewPassword, signUp } from '../lib/cloud/auth'
+import { authOptions, google, logIn, restartAuth, sendReset, setNewPassword, signUp } from '../lib/cloud/auth'
 import { useEntry, type AuthMode } from '../lib/entry'
 
 type Mode = AuthMode | 'reset' | 'sent' | 'confirm'
@@ -23,6 +23,8 @@ export default function Auth({ reset = false }: { reset?: boolean }) {
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState('')
   const [cloudOn, setCloudOn] = useState(() => !!cloudConfig())
+  const [hasGoogle, setHasGoogle] = useState(false)
+  useEffect(() => { void authOptions().then((o) => setHasGoogle(!!o?.google)) }, [cloudOn])
   const back = () => entry.go('landing')
   const local = () => entry.go('setup')
   const switchTo = (m: Mode) => { setMode(m); setErr('') }
@@ -106,8 +108,8 @@ export default function Auth({ reset = false }: { reset?: boolean }) {
                   {(mode === 'login' || mode === 'signup') && (
                     <>
                       <div className="my-5 flex items-center gap-3 text-[12px] font-semibold text-muted"><i className="h-px flex-1 bg-line" />OR<i className="h-px flex-1 bg-line" /></div>
-                      <button type="button" onClick={viaGoogle} disabled={busy} className="flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-line2 bg-surface font-semibold hover:border-accent"><GoogleMark />Continue with Google</button>
-                      <button type="button" onClick={local} className="mt-3 flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-line font-semibold text-ink2 hover:text-ink"><ShieldCheck size={18} />Continue without an account</button>
+                      {hasGoogle && <button type="button" onClick={viaGoogle} disabled={busy} className="mb-3 flex h-12 w-full items-center justify-center gap-3 rounded-xl border border-line2 bg-surface font-semibold hover:border-accent"><GoogleMark />Continue with Google</button>}
+                      <button type="button" onClick={local} className="flex h-12 w-full items-center justify-center gap-2 rounded-xl border border-line font-semibold text-ink2 hover:text-ink"><ShieldCheck size={18} />Continue without an account</button>
                       <p className="mt-5 text-center text-[14.5px] text-ink2">
                         {mode === 'login' ? <>Don't have an account? <button type="button" onClick={() => switchTo('signup')} className="font-bold text-accent">Sign up</button></> : <>Already have an account? <button type="button" onClick={() => switchTo('login')} className="font-bold text-accent">Log in</button></>}
                       </p>

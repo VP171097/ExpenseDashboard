@@ -44,7 +44,7 @@ export async function initAuth() {
   }
 }
 /** Call after the project settings change. */
-export function restartAuth() { started = false; useAuth.setState({ status: cloudConfig() ? 'loading' : 'off', user: null }); return initAuth() }
+export function restartAuth() { started = false; settings = null; useAuth.setState({ status: cloudConfig() ? 'loading' : 'off', user: null }); return initAuth() }
 
 /** Where email links and Google send people back to: this same page. */
 const here = () => location.origin + location.pathname
@@ -97,7 +97,20 @@ export async function setNewPassword(password: string) {
   if (r.ok) useAuth.setState({ recovering: false })
   return r
 }
+let settings: Promise<{ google: boolean; confirm: boolean } | null> | null = null
+/** Which sign-in options the project has switched on (cached). */
+export function authOptions() {
+  const c = cloudConfig()
+  if (!c) return Promise.resolve(null)
+  settings ??= fetch(`${c.url}/auth/v1/settings`, { headers: { apikey: c.anonKey } })
+    .then((r) => (r.ok ? r.json() : null))
+    .then((j) => (j ? { google: !!j.external?.google, confirm: !j.mailer_autoconfirm } : null))
+    .catch(() => null)
+  return settings
+}
 export async function google() {
+  const opts = await authOptions()
+  if (opts && !opts.google) return { ok: false as const, error: "Google sign-in isn't switched on for this Tally yet. Use email and password." }
   const c = await sb()
   return run(() => c.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: here() } }))
 }

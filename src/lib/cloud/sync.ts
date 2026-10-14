@@ -20,18 +20,25 @@ const device = () => {
   return `${br} on ${os}`
 }
 
+/** Database errors in plain words. */
+function plain(message: string) {
+  if (/PGRST20[25]|schema cache|tally_data|tally_save/.test(message)) return "Your Supabase project doesn't have Tally's table yet. Run the setup SQL from the README (step 2), then tap Sync now."
+  if (/JWT|permission denied|401/.test(message)) return 'Your login has expired. Log out and log in again.'
+  return message
+}
+
 function supabaseRemote(): Remote {
   return {
     async get() {
       const sb = await supabase()!
       const { data, error } = await sb.from('tally_data').select('data, rev, updated_at, device').maybeSingle()
-      if (error) throw new Error(error.message)
+      if (error) throw new Error(plain(`${error.code ?? ''} ${error.message}`))
       return data ? { data: data.data as State, rev: Number(data.rev), updated_at: data.updated_at, device: data.device } : null
     },
     async save(data, expected) {
       const sb = await supabase()!
       const { data: rev, error } = await sb.rpc('tally_save', { p_data: data, p_expected: expected, p_device: device() })
-      if (error) throw new Error(error.message)
+      if (error) throw new Error(plain(`${error.code ?? ''} ${error.message}`))
       return Number(rev)
     },
   }
