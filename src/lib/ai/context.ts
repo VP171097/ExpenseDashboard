@@ -9,6 +9,7 @@ import {
 } from '../calc'
 import { addDays, addMonths, iso, NOW, THIS_MONTH, TODAY } from '../dates'
 import type { State } from '../types'
+import { emiStatus } from '../emi'
 
 const r = (v: number) => Math.round((v || 0) * 100) / 100
 const kind = (t: string) => (t === 'income' ? 'in' : t === 'savings' ? 'put aside' : 'out')
@@ -58,6 +59,7 @@ export function buildContext(s: State, o: ContextOptions = {}) {
       list: s.debts.map((d) => ({ name: d.name, balance: r(d.balance), interestRate: d.rate, minimum: r(d.min), paidOffInMonths: sim.payoff[d.id], interestStillToPay: r(sim.per[d.id]?.interest ?? 0) })),
       plan: { strategy: s.settings.strategy, extraPerMonth: r(s.settings.extra), debtFreeInMonths: sim.stuck ? 'never at this rate' : sim.months, totalInterest: r(sim.interest) },
     } : undefined,
+    loansAndEmis: (s.emis ?? []).length ? (s.emis ?? []).map((e) => { const st = emiStatus(e); return { name: e.name, kind: e.kind === 'card' ? 'card EMI' : 'loan', borrowed: r(e.principal), interestRate: e.rate, months: e.months, emi: st.emi, paid: st.done, left: st.left, thisMonth: st.thisMonth ? `EMI ${st.thisMonth.n} of ${e.months} on ${st.thisMonth.date}${st.thisMonth.paid ? ' (paid)' : ''}` : undefined, stillOwed: r(st.owed), lastEmi: st.last, interestStillToPay: r(st.interestTotal - st.interestPaid) } }) : undefined,
     trips: (s.trips ?? []).map((t) => { const st = tripStats(s, t); return { name: t.name, from: t.start, to: t.end, phase: st.phase, budget: r(t.budget), spent: r(st.net), leftInBudget: t.budget ? r(st.left) : undefined, perDayLeft: st.perDayLeft ? r(st.perDayLeft) : undefined, topCategories: st.byCat.slice(0, 3).map(([c, v]) => ({ category: catName(s, c), amount: r(v) })) } }),
     possibleDuplicates: duplicateIds(s).size || undefined,
     recentEntries: recent.map((t) => ({
